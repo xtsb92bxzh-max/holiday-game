@@ -1,0 +1,182 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-navy: #070d3a;
+  --color-royal: #0b1452;
+  --color-cobalt: #1d3fc4;
+  --color-sky: #4f78ff;
+  --color-red: #d8232e;
+  --color-crimson: #9e1520;
+  --color-mustard: #f0b429;
+  --color-gold: #ffd560;
+  --color-cream: #fff5df;
+  --color-paper: #fbf7ee;
+  --color-ink: #17122b;
+  --color-sage: #2f8f5b;
+
+  --font-display: 'Bungee', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Fraunces Variable', Georgia, serif;
+  --font-sans: 'DM Sans Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    background: var(--color-navy);
+  }
+  body {
+    background: var(--color-navy);
+    color: var(--color-cream);
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+    min-height: 100dvh;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-gold);
+    outline-offset: 3px;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+/* ───── Stage furniture ───── */
+
+.stage-bg {
+  background:
+    radial-gradient(ellipse 60% 45% at 50% -5%, rgb(255 213 96 / 0.28), transparent 70%),
+    radial-gradient(ellipse 40% 60% at 0% 30%, rgb(79 120 255 / 0.35), transparent 70%),
+    radial-gradient(ellipse 40% 60% at 100% 30%, rgb(216 35 46 / 0.28), transparent 70%),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.025) 0 2px, transparent 2px 48px),
+    linear-gradient(180deg, #0b1452 0%, #070d3a 70%, #05092a 100%);
+}
+
+.sparkle {
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 18%, #fff8 50%, transparent 51%),
+    radial-gradient(1px 1px at 72% 12%, #fff9 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 38% 62%, #ffd56099 50%, transparent 51%),
+    radial-gradient(1px 1px at 88% 48%, #fff7 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 22% 84%, #ffd56088 50%, transparent 51%),
+    radial-gradient(1px 1px at 58% 32%, #fff6 50%, transparent 51%);
+}
+
+/* Chasing marquee bulbs drawn with a dotted border image. */
+.bulbs {
+  position: relative;
+  isolation: isolate;
+}
+.bulbs::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: inherit;
+  padding: 6px;
+  background:
+    radial-gradient(circle, #fff6c9 0 2.5px, #ffd560 3px, transparent 4.5px) 0 0 / 18px 18px,
+    linear-gradient(#b8860b, #7a5200);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  z-index: -1;
+  animation: bulbs-chase 1.2s steps(2) infinite;
+}
+@keyframes bulbs-chase {
+  to {
+    background-position: 9px 0, 0 0;
+  }
+}
+
+.spotlight {
+  position: absolute;
+  top: -10%;
+  width: 40vmax;
+  height: 120%;
+  background: conic-gradient(from 180deg at 50% 0%, transparent 160deg, rgb(255 230 160 / 0.22) 175deg, rgb(255 240 200 / 0.3) 180deg, rgb(255 230 160 / 0.22) 185deg, transparent 200deg);
+  transform-origin: 50% 0%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.spotlight-left {
+  left: 5%;
+  animation: sweep-left 7s ease-in-out infinite alternate;
+}
+.spotlight-right {
+  right: 5%;
+  animation: sweep-right 8s ease-in-out infinite alternate;
+}
+@keyframes sweep-left {
+  from { transform: rotate(-22deg); }
+  to { transform: rotate(14deg); }
+}
+@keyframes sweep-right {
+  from { transform: rotate(20deg); }
+  to { transform: rotate(-16deg); }
+}
+
+.footlights {
+  background:
+    radial-gradient(ellipse 18px 10px at 50% 100%, #ffd560 0 40%, transparent 70%) 0 100% / 64px 100% repeat-x,
+    linear-gradient(180deg, transparent, rgb(255 213 96 / 0.15));
+}
+
+.marquee-text {
+  font-family: var(--font-display);
+  color: var(--color-gold);
+  text-shadow:
+    0 2px 0 #b8860b,
+    0 4px 0 #7a1016,
+    0 0 24px rgb(255 213 96 / 0.45);
+  letter-spacing: 0.02em;
+}
+
+.scoreboard-digit {
+  font-family: var(--font-display);
+  color: #ffb347;
+  text-shadow: 0 0 8px rgb(255 140 0 / 0.8);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Conveyor belt treads: the position is driven by JS so it moves with the cards. */
+.belt-treads {
+  background:
+    repeating-linear-gradient(90deg, #2a2f45 0 22px, #1a1e2e 22px 26px, #3a4060 26px 28px),
+    #222;
+}
+
+.ticket {
+  background:
+    radial-gradient(circle at 0 50%, transparent 10px, var(--color-cream) 10.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 50%, transparent 10px, var(--color-cream) 10.5px) right / 51% 100% no-repeat;
+}
+
+.paper {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+/* Reduced motion: honour the OS and the in-app toggle. */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) *,
+  :root:not([data-motion='full']) *::before,
+  :root:not([data-motion='full']) *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }

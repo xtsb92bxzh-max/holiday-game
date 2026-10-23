@@ -1,0 +1,177 @@
+{
+  "amsterdam": {
+    "file": "File:Amsterdam Canal Houses (Unsplash).jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Amsterdam_Canal_Houses_(Unsplash).jpg",
+    "author": "Kaci Baum kacibaum",
+    "license": "CC0",
+    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+  },
+  "berlin": {
+    "file": "File:Brandenburger Tor morgens.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Brandenburger_Tor_morgens.jpg",
+    "author": "Thomas Wolf, www.foto-tw.de",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "brussels": {
+    "file": "File:Rozenhoedkaai (canal) and Belfry of Bruges, Bruges, Belgium (Ank Kumar, Infosys Limited) 01.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Rozenhoedkaai_(canal)_and_Belfry_of_Bruges,_Bruges,_Belgium_(Ank_Kumar,_Infosys_Limited)_01.jpg",
+    "author": "Ank Kumar",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "copenhagen": {
+    "file": "File:2018 - Nyhavn on sunset.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:2018_-_Nyhavn_on_sunset.jpg",
+    "author": "Moahim",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "gdansk": {
+    "file": "File:Old Town houses and port crane along Motława, Gdańsk, evening.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Old_Town_houses_and_port_crane_along_Mot%C5%82awa,_Gda%C5%84sk,_evening.jpg",
+    "author": "Gerda Arendt",
+    "license": "CC0",
+    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+  },
+  "helsinki": {
+    "file": "File:View from Helsinki Cathedral over the Senate Square.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:View_from_Helsinki_Cathedral_over_the_Senate_Square.jpg",
+    "author": "Ypsilon from Finland",
+    "license": "CC0",
+    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+  },
+  "kaunas": {
+    "file": "File:Kaunas, Lithuania Old Town - 1.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Kaunas,_Lithuania_Old_Town_-_1.jpg",
+    "author": "Wiki Asmah",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+  },
+  "krakow": {
+    "file": "File:Krakow - Cloth Hall from Basilica - 1.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Krakow_-_Cloth_Hall_from_Basilica_-_1.jpg",
+    "author": "Ingo Mehling",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "luxembourg": {
+    "file": "File:Luxembourg City - Grund from Corniche.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Luxembourg_City_-_Grund_from_Corniche.jpg",
+    "author": "Cayambe",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "madrid": {
+    "file": "File:Plaza Mayor, Madrid 20180720.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Plaza_Mayor,_Madrid_20180720.jpg",
+    "author": "Suicasmo",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "malaga": {
+    "file": "File:Alcazaba Malaga View on the City.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Alcazaba_Malaga_View_on_the_City.jpg",
+    "author": "Jooonas07",
+    "license": "CC0",
+    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+  },
+  "munich": {
+    "file": "File:Frauenkirche Munich view from Peterskirche Tower.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Frauenkirche_Munich_view_from_Peterskirche_Tower.jpg",
+    "author": "AuHaidhausen",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+  },
+  "paphos": {
+    "file": "File:Paphos Castle and Paphos Marina, Paphos, Cyprus.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Paphos_Castle_and_Paphos_Marina,_Paphos,_Cyprus.jpg",
+    "author": "Fry72, Karel Frydrýšek",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "paris": {
+    "file": "File:Eiffel Tower and Pont Alexandre III at night.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Eiffel_Tower_and_Pont_Alexandre_III_at_night.jpg",
+    "author": "Getfunky Paris",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0"
+  },
+  "pisa-florence": {
+    "file": "File:Firenze Panorama del Centro con il Duomo e Palazzo Vecchio.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Firenze_Panorama_del_Centro_con_il_Duomo_e_Palazzo_Vecchio.jpg",
+    "author": "PROPOLI87",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "porto": {
+    "file": "File:View of Ribeira from Cais de Gaia, 20250605 1628 9890.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:View_of_Ribeira_from_Cais_de_Gaia,_20250605_1628_9890.jpg",
+    "author": "Jakub Hałun",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+  },
+  "poznan": {
+    "file": "File:Poznan 10-2013 img15 Old Market.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Poznan_10-2013_img15_Old_Market.jpg",
+    "author": "A.Savin",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "prague": {
+    "file": "File:Prague skyline at dawn.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Prague_skyline_at_dawn.jpg",
+    "author": "Petar Milošević",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "rome": {
+    "file": "File:Rom (IT), Kolosseum -- 2024 -- 0610.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Rom_(IT),_Kolosseum_--_2024_--_0610.jpg",
+    "author": "Anil Öztas",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+  },
+  "tallinn": {
+    "file": "File:Tallinn Toompea Upper Old Town 2013.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Tallinn_Toompea_Upper_Old_Town_2013.jpg",
+    "author": "Ivar Leidus",
+    "license": "CC BY-SA 3.0 ee",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/ee/deed.en"
+  },
+  "tenerife": {
+    "file": "File:Teide Canadas.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Teide_Canadas.jpg",
+    "author": "Ingo Mehling",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "venice": {
+    "file": "File:Panorama of Canal Grande and Ponte di Rialto, Venice - September 2017.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Panorama_of_Canal_Grande_and_Ponte_di_Rialto,_Venice_-_September_2017.jpg",
+    "author": "Martin Falbisoner",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "vilnius": {
+    "file": "File:Vilnius - Panorama 02.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Vilnius_-_Panorama_02.jpg",
+    "author": "Lestat (Jan Mehlich)",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/"
+  },
+  "warsaw": {
+    "file": "File:Old Town Market Place-Warsaw-Poland.JPG",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Old_Town_Market_Place-Warsaw-Poland.JPG",
+    "author": "Jorge Lascar",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "wroclaw": {
+    "file": "File:Market Square in Wrocław, September 2022 05.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Market_Square_in_Wroc%C5%82aw,_September_2022_05.jpg",
+    "author": "Szczecinolog",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
+}
