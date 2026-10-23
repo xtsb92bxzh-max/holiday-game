@@ -38,7 +38,7 @@ export default function ShowHeader() {
                 key={n.screen}
                 onClick={() => dispatch({ type: 'go', screen: n.screen })}
                 aria-current={active ? 'page' : undefined}
-                className={`inline-flex min-h-11 min-w-10 items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-semibold transition sm:px-3 ${
+                className={`inline-flex min-h-11 min-w-9 items-center justify-center gap-1.5 rounded-lg px-1.5 text-sm min-[360px]:px-2 font-semibold transition sm:px-3 ${
                   active ? 'bg-mustard text-ink' : 'text-cream/85 hover:bg-cream/10'
                 }`}
               >
@@ -53,7 +53,7 @@ export default function ShowHeader() {
         <div className="flex items-center">
           <button
             onClick={() => dispatch({ type: 'toggleSound' })}
-            className="inline-flex h-11 w-10 items-center justify-center rounded-lg text-cream/85 hover:bg-cream/10 sm:w-11"
+            className="inline-flex h-11 w-9 items-center justify-center rounded-lg text-cream/85 hover:bg-cream/10 min-[360px]:w-10 sm:w-11"
             aria-pressed={state.sound}
             aria-label={state.sound ? 'Sound on. Turn sound off' : 'Sound off. Turn sound on'}
             title={state.sound ? 'Sound on' : 'Sound off'}
@@ -62,7 +62,7 @@ export default function ShowHeader() {
           </button>
           <button
             onClick={() => dispatch({ type: 'setReduceMotion', value: !reduceMotion })}
-            className="inline-flex h-11 w-10 items-center justify-center rounded-lg text-cream/85 hover:bg-cream/10 sm:w-11"
+            className="inline-flex h-11 w-9 items-center justify-center rounded-lg text-cream/85 hover:bg-cream/10 min-[360px]:w-10 sm:w-11"
             aria-pressed={reduceMotion}
             aria-label={reduceMotion ? 'Motion reduced. Turn animations on' : 'Animations on. Reduce motion'}
             title={reduceMotion ? 'Motion reduced' : 'Animations on'}

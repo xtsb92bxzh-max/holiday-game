@@ -35,11 +35,11 @@
     "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
   },
   "helsinki": {
-    "file": "File:View from Helsinki Cathedral over the Senate Square.jpg",
-    "sourcePage": "https://commons.wikimedia.org/wiki/File:View_from_Helsinki_Cathedral_over_the_Senate_Square.jpg",
-    "author": "Ypsilon from Finland",
-    "license": "CC0",
-    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+    "file": "File:Helsinki Senate Square and Helsinki Cathedral in May 2026.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Helsinki_Senate_Square_and_Helsinki_Cathedral_in_May_2026.jpg",
+    "author": "JIP",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "kaunas": {
     "file": "File:Kaunas, Lithuania Old Town - 1.jpg",
@@ -84,9 +84,9 @@
     "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
   },
   "paphos": {
-    "file": "File:Paphos Castle and Paphos Marina, Paphos, Cyprus.jpg",
-    "sourcePage": "https://commons.wikimedia.org/wiki/File:Paphos_Castle_and_Paphos_Marina,_Paphos,_Cyprus.jpg",
-    "author": "Fry72, Karel Frydrýšek",
+    "file": "File:Boats in Paphos harbour 1.JPG",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Boats_in_Paphos_harbour_1.JPG",
+    "author": "Anatoliy Smaga",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
@@ -119,9 +119,9 @@
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "prague": {
-    "file": "File:Prague skyline at dawn.jpg",
-    "sourcePage": "https://commons.wikimedia.org/wiki/File:Prague_skyline_at_dawn.jpg",
-    "author": "Petar Milošević",
+    "file": "File:North view of Charles Bridge from Mánesův most, Prague 20160808 1.jpg",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:North_view_of_Charles_Bridge_from_M%C3%A1nes%C5%AFv_most,_Prague_20160808_1.jpg",
+    "author": "DXR",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
@@ -154,11 +154,11 @@
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   },
   "vilnius": {
-    "file": "File:Vilnius - Panorama 02.jpg",
-    "sourcePage": "https://commons.wikimedia.org/wiki/File:Vilnius_-_Panorama_02.jpg",
-    "author": "Lestat (Jan Mehlich)",
+    "file": "File:Vilnius old town 1.JPG",
+    "sourcePage": "https://commons.wikimedia.org/wiki/File:Vilnius_old_town_1.JPG",
+    "author": "Karmen media",
     "license": "CC BY-SA 3.0",
-    "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/"
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
   },
   "warsaw": {
     "file": "File:Old Town Market Place-Warsaw-Poland.JPG",
