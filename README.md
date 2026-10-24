@@ -145,9 +145,9 @@ The brief is in `docs/GETAWAY_SHOW_BUILD_BRIEF.md`. It is broadcast on GBC, the 
 
 1. The title screen offers Roll the titles, Skip the nonsense (the table) and What do these prices include?. A saved show offers Resume show and Start again.
 2. Members of the audience: the two-person edition (default) or the quick edition, with optional nicknames.
-3. Round 1, Catch a Flight. Twelve featured destinations in four broadcast groups. Each hides a real photo under nine numbered tiles. Show me a bit more flips three tiles and adds a clue. Reveal the city works at any time. The info card gives three reasons, the catch, dates and flight evidence, and informal bookmarks. Optional studio points for early guesses.
-4. Round 2, Play Your Flights Right. Six higher-or-lower duels along a fixed price ladder of priced destinations. Every reveal shows the total for two, a breakdown and the research date. A wrong guess eliminates nothing.
-5. Round 3, The Holiday Bullseye. Six board segments, picked by button or by Throw the dart. Each pick brings on one or two destinations not yet shown, or says All prizes claimed. Wildcards can be added to the ballot with Total unknown showing. More destinations lists everyone else.
+3. Round 1, Catch a Flight. Twelve featured destinations, in a shuffled running order for each new show. Each hides a real photo under nine numbered tiles. Show me a bit more flips three tiles and adds a clue. Reveal the city works at any time. The info card gives three reasons, the catch, dates and flight evidence, and informal bookmarks. Optional studio points for early guesses.
+4. Round 2, Play Your Flights Right. Six higher-or-lower duels along a price ladder of priced destinations. The ladder is shuffled for each new show, so different destinations meet in each duel. Every reveal shows the total for two, a breakdown and the research date. A wrong guess eliminates nothing.
+5. Round 3, The Holiday Bullseye. Six board segments, picked by button or by Throw the dart. Each pick brings on one or two destinations not yet shown, drawn at random, or says All prizes claimed. Wildcards can be added to the ballot with Total unknown showing. More destinations lists everyone else.
 6. Round 4, The Nation Has Voted. Traveller A votes Yes, Maybe or No, locks in and passes the phone. Traveller B votes without A's votes anywhere on screen. The results stay sealed until Reveal the results.
 7. Results: The public have spoken (Yes + Yes), A grower, not a shower (Yes + Maybe, Maybe + Maybe), Controversy in the studio (Yes or Maybe against No), Did not make it past the auditions (No + No) and Not voted. A missing vote is never a No. Either ballot can be edited privately.
 8. Grand final, Here's What You Could Have Flown. Up to three finalists side by side, ranked by votes. You can reorder by cheapest, simplest journey, most time there, winter escape or cafés and culture; anything that cannot be compared is labelled. You choose the winner, which produces a printable certificate. Print, Copy comparison and Copy the shortlist all work offline.
@@ -217,6 +217,8 @@ The app is a standard Next.js 15 App Router project. It needs no environment var
 4. Every pull request then gets a preview URL. The production branch deploys to the main URL.
 
 ## Saved progress
+
+Each new game shuffles its running order: the conveyor belt and the mystery contestants here, and the Round 1 order, the Round 2 pairings and the board draws in the Great British Getaway Show. The shuffle is seeded and saved, so a refresh keeps the same order. It is fixed once anything has been judged or revealed. A game saved before shuffling existed keeps the workbook order until it is reset.
 
 Guesses, decisions, the chosen dates, contestant names and settings are saved in the browser's `localStorage`. Nothing leaves the device. Progress survives a refresh but does not sync between phones. Use **Reset the whole show** in the footer to start again.
 

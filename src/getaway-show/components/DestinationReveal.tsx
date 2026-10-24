@@ -9,9 +9,9 @@ import { destinationById } from '@/lib/catalogue';
 import type { ImageCredit } from '@/lib/types';
 import { contestants } from '../data/contestants';
 import { copy } from '../data/copy';
-import { featuredIds, groupOf, pitchFor, selectedVariant } from '../lib/cast';
+import { groupOf, pitchFor, selectedVariant } from '../lib/cast';
 import { costBreakdown } from '../lib/cost';
-import { phaseHref, studioPoints, type Bookmark } from '../lib/state';
+import { phaseHref, revealOrder, studioPoints, type Bookmark } from '../lib/state';
 import { ProgressControls, Shell } from './Chrome';
 import { useShow, useVisit } from './ShowProvider';
 import { btn, Catches, EstimatedPrice, EvidenceStatus, HostLine, NoInfluence, RoundHeading, SourceStatus, TripFacts, VariantPicker } from './ui';
@@ -96,8 +96,9 @@ const bookmarkOptions: { id: Bookmark; label: string }[] = [
 export default function DestinationReveal() {
   const { state, dispatch, sfx } = useShow();
   useVisit('picture_reveal');
-  const index = Math.min(state.revealIndex, featuredIds.length - 1);
-  const id = featuredIds[index];
+  const order = revealOrder(state);
+  const index = Math.min(state.revealIndex, order.length - 1);
+  const id = order[index];
   const d = destinationById[id];
   const c = contestants[id];
   const group = groupOf(id);
@@ -106,7 +107,7 @@ export default function DestinationReveal() {
   const it = selectedVariant(id, state.preferredItineraryIds[id]);
   const guess = state.pictureGuessResults[id];
   const points = studioPoints(state);
-  const last = index === featuredIds.length - 1;
+  const last = index === order.length - 1;
 
   const cardHeading = useRef<HTMLHeadingElement>(null);
   const boardHeading = useRef<HTMLHeadingElement>(null);
@@ -135,7 +136,7 @@ export default function DestinationReveal() {
 
         <nav aria-label="Contestants" className="no-scrollbar -mx-4 overflow-x-auto px-4">
           <ol className="flex gap-1.5">
-            {featuredIds.map((fid, i) => (
+            {order.map((fid, i) => (
               <li key={fid}>
                 <button
                   type="button"
@@ -162,7 +163,7 @@ export default function DestinationReveal() {
             <div>
               {group && <p className="text-xs font-bold uppercase tracking-[0.2em] text-gb-gold">{group.title}</p>}
               <h2 id="board-heading" ref={boardHeading} tabIndex={-1} className="gb-display text-2xl outline-none sm:text-3xl">
-                Contestant {index + 1} of {featuredIds.length}
+                Contestant {index + 1} of {order.length}
               </h2>
               <HostLine className="mt-1">{c.setup}</HostLine>
             </div>

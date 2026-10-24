@@ -1,5 +1,6 @@
 'use client';
 
+import { newSeed } from '@/lib/shuffle';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -19,7 +20,7 @@ export default function ShowIntro() {
   const canResume = hadSavedShow && state.started;
 
   const start = () => {
-    dispatch({ type: 'start' });
+    dispatch({ type: 'start', seed: newSeed() });
     router.push(phaseHref.picture_reveal);
   };
 

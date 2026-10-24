@@ -180,7 +180,7 @@ export default function CategoryTarget() {
   const choose = (segment: number) => {
     setDart((d) => ({ segment, turns: d?.turns ?? 0 }));
     const seg = boardSegments[segment];
-    const ids = drawFromSegment(seg.id, [...featuredIds, ...state.unlockedDestinationIds]);
+    const ids = drawFromSegment(seg.id, [...featuredIds, ...state.unlockedDestinationIds], state.seed);
     if (ids.length) dispatch({ type: 'unlock', ids });
     setPick({ segment, ids });
     sfx(ids.length ? 'mystery' : 'bin');

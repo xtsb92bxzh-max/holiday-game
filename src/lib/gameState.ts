@@ -1,4 +1,6 @@
-import type { Decision } from './types';
+import { mainCast, mysteryCast } from './catalogue';
+import { isSeed, seededShuffle } from './shuffle';
+import type { Decision, Destination } from './types';
 
 export type Screen = 'title' | 'conveyor' | 'play' | 'mystery' | 'final' | 'sensible';
 
@@ -25,6 +27,8 @@ export type GameState = {
   contestantTurn: 0 | 1;
   sound: boolean;
   reduceMotion: boolean | null; // null = follow the device setting
+  /** Shuffles the running order. null keeps the workbook order (games saved before shuffling existed). */
+  seed: number | null;
 };
 
 export const STORAGE_KEY = 'great-january-getaway:v1';
@@ -42,6 +46,7 @@ export const initialState: GameState = {
   contestantTurn: 0,
   sound: false,
   reduceMotion: null,
+  seed: null,
 };
 
 export type Action =
@@ -57,6 +62,7 @@ export type Action =
   | { type: 'renameContestant'; index: 0 | 1; name: string }
   | { type: 'toggleSound' }
   | { type: 'setReduceMotion'; value: boolean | null }
+  | { type: 'shuffle'; seed: number }
   | { type: 'reset' };
 
 export function reducer(state: GameState, action: Action): GameState {
@@ -122,9 +128,26 @@ export function reducer(state: GameState, action: Action): GameState {
       return { ...state, sound: !state.sound };
     case 'setReduceMotion':
       return { ...state, reduceMotion: action.value };
+    case 'shuffle':
+      // A new game deals a fresh running order. Once anything is judged, the order stays put.
+      if (hasProgress(state) || !isSeed(action.seed)) return state;
+      return { ...state, seed: action.seed, playIndex: 0, mysteryIndex: 0 };
     case 'reset':
       return { ...initialState, sound: state.sound, reduceMotion: state.reduceMotion };
   }
+}
+
+export function hasProgress(state: GameState): boolean {
+  return Object.keys(state.decisions).length > 0 || Object.keys(state.guesses).length > 0;
+}
+
+/** The prizes in tonight's running order. */
+export function mainLineup(state: GameState): Destination[] {
+  return state.seed == null ? mainCast : seededShuffle(mainCast, state.seed);
+}
+
+export function mysteryLineup(state: GameState): Destination[] {
+  return state.seed == null ? mysteryCast : seededShuffle(mysteryCast, state.seed + 1);
 }
 
 /** The guess record only counts if it was made for the itinerary now selected. */
@@ -147,7 +170,7 @@ export function loadState(storage: Pick<Storage, 'getItem'> | undefined): GameSt
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed?.version !== 1) return null;
-    return { ...initialState, ...parsed };
+    return { ...initialState, ...parsed, seed: isSeed(parsed.seed) ? parsed.seed : null };
   } catch {
     return null;
   }

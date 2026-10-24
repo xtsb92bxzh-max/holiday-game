@@ -1,3 +1,4 @@
+import { isSeed } from '../../lib/shuffle';
 import { featuredIds, isFeatured, isShowable, ladderIds, variantsFor } from './cast';
 import { initialState, MAX_FINALISTS, type Bookmark, type DuelRecord, type GameState, type Phase, type PlayerId, type Vote } from './state';
 
@@ -57,6 +58,7 @@ export function sanitise(raw: unknown): GameState | null {
         : undefined,
     ),
     bookmarks: record(raw.bookmarks, (k, val) => (isShowable(k) && bookmarks.has(val as Bookmark) ? (val as Bookmark) : undefined)),
+    seed: isSeed(raw.seed) ? raw.seed : null,
     preferredItineraryIds: record(raw.preferredItineraryIds, (k, val) =>
       typeof val === 'string' && variantsFor(k).some((v) => v.id === val) ? val : undefined,
     ),

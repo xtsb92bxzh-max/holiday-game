@@ -1,3 +1,4 @@
+import { isSeed, seededShuffle } from '../../lib/shuffle';
 import { duelAnswer, duelItinerary, featuredIds, isFeatured, isShowable, ladderIds, variantsFor } from './cast';
 import { groupQuick, groupTwoPerson, type Vote } from './matching';
 
@@ -64,6 +65,8 @@ export type GameState = {
   soundEnabled: boolean;
   /** null follows the device setting. */
   reduceMotion: boolean | null;
+  /** Shuffles the running order, the price pairings and the board draws. null keeps the written order. */
+  seed: number | null;
 };
 
 export const MAX_FINALISTS = 3;
@@ -93,13 +96,14 @@ export const initialState: GameState = {
   finalistDestinationIds: [],
   soundEnabled: false,
   reduceMotion: null,
+  seed: null,
 };
 
 export type Action =
   | { type: 'hydrate'; state: GameState }
   | { type: 'setMode'; mode: Mode }
   | { type: 'setName'; player: PlayerId; name: string }
-  | { type: 'start' }
+  | { type: 'start'; seed?: number }
   | { type: 'visit'; phase: Phase }
   | { type: 'goToReveal'; index: number }
   | { type: 'showMore'; destinationId: string }
@@ -133,8 +137,9 @@ const omit = <T,>(rec: Record<string, T>, key: string): Record<string, T> => {
 
 /** The two cards in a duel, using each destination's current dates. */
 export function duelPair(state: GameState, index: number) {
-  const leftId = ladderIds[index];
-  const rightId = ladderIds[index + 1];
+  const ladder = ladderOrder(state);
+  const leftId = ladder[index];
+  const rightId = ladder[index + 1];
   if (!leftId || !rightId) return undefined;
   const left = duelItinerary(leftId, state.preferredItineraryIds[leftId]);
   const right = duelItinerary(rightId, state.preferredItineraryIds[rightId]);
@@ -175,7 +180,8 @@ export function reducer(state: GameState, action: Action): GameState {
       return { ...state, playerNames: { ...state.playerNames, [action.player]: action.name.slice(0, 24) } };
 
     case 'start':
-      return { ...state, started: true };
+      // A new show deals a fresh order once. A show already under way keeps its own.
+      return { ...state, started: true, seed: state.seed ?? (hasProgress(state) || !isSeed(action.seed) ? null : action.seed) };
 
     case 'visit':
       return state.phase === action.phase ? state : { ...state, phase: action.phase, started: true };
@@ -330,9 +336,30 @@ export function nameOf(state: GameState, player: PlayerId): string {
   return state.playerNames[player].trim() || (player === 'a' ? 'Traveller A' : 'Traveller B');
 }
 
-/** Featured contestants, then anything the players added. One entry per destination. */
+/** Round 1's running order. */
+export function revealOrder(state: GameState): string[] {
+  return state.seed == null ? featuredIds : seededShuffle(featuredIds, state.seed);
+}
+
+/** Round 2's ladder. Shuffling it changes which destinations meet in each duel. */
+export function ladderOrder(state: GameState): string[] {
+  return state.seed == null ? ladderIds : seededShuffle(ladderIds, state.seed + 1);
+}
+
+export function hasProgress(state: GameState): boolean {
+  return (
+    state.revealIndex > 0 ||
+    Object.keys(state.identityRevealed).length > 0 ||
+    state.priceDuelHistory.length > 0 ||
+    state.unlockedDestinationIds.length > 0 ||
+    Object.keys(state.ballots.a).length > 0 ||
+    Object.keys(state.ballots.b).length > 0
+  );
+}
+
+/** Featured contestants in tonight's order, then anything the players added. One entry per destination. */
 export function ballotIds(state: GameState): string[] {
-  return unique([...featuredIds, ...state.ballotExtraIds.filter(isShowable)]);
+  return unique([...revealOrder(state), ...state.ballotExtraIds.filter(isShowable)]);
 }
 
 /** Whose ballot is on screen, or null when nobody should be voting. */

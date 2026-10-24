@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { useGame } from './GameContext';
 import { btn, HostLine } from './ui';
 import { mainCast } from '@/lib/catalogue';
+import { newSeed } from '@/lib/shuffle';
 
 export default function TitleScreen() {
   const { state, dispatch } = useGame();
@@ -89,7 +90,13 @@ export default function TitleScreen() {
         </fieldset>
 
         <div className="flex flex-col items-stretch gap-3">
-          <button className={btn.primary + ' text-lg'} onClick={() => dispatch({ type: 'go', screen: 'conveyor' })}>
+          <button
+            className={btn.primary + ' text-lg'}
+            onClick={() => {
+              if (state.seed == null) dispatch({ type: 'shuffle', seed: newSeed() });
+              dispatch({ type: 'go', screen: 'conveyor' });
+            }}
+          >
             {started ? 'Back to the prizes' : 'Let’s see the prizes'}
           </button>
           {started && (
