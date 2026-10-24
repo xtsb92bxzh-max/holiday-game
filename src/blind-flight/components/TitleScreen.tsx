@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { Users, Zap } from 'lucide-react';
 import { copy } from '../data/copy';
-import { featuredIds } from '../lib/cast';
+import { featuredIds, newSeed } from '../lib/cast';
 import { anyProgress, players, progress, resumeHref, type PlayMode } from '../lib/state';
 import { useShow } from './BlindFlightProvider';
 import { Logo, Mark, Toggles } from './Chrome';
@@ -33,7 +33,7 @@ export default function TitleScreen() {
   const p = progress(state);
 
   const start = () => {
-    dispatch({ type: 'start' });
+    dispatch({ type: 'start', seed: newSeed() });
     sfx('fanfare');
     router.push(state.started ? resumeHref(state) : '/blind-flight/show');
   };
@@ -149,7 +149,7 @@ export default function TitleScreen() {
               Skip to the holidays
             </Link>
             <div className="flex flex-wrap items-center justify-center gap-x-5">
-              <Link href="/blind-flight/show" className={btn.link} onClick={() => dispatch({ type: 'start' })}>
+              <Link href="/blind-flight/show" className={btn.link} onClick={() => dispatch({ type: 'start', seed: newSeed() })}>
                 Skip intro
               </Link>
               <Link href="/blind-flight/about" className={btn.link}>

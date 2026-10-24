@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronRight, Plus } from 'lucide-react';
+import { ChevronRight, Plus, Shuffle } from 'lucide-react';
 import { destinationById } from '@/lib/catalogue';
 import Photo from '@/components/Photo';
-import { contenderIds, seatWords, type ShowEpisode } from '../lib/cast';
-import { currentEpisode, displayName, episodeStage, episodeVerdict, isUnmasked, players, progress, resultsReady, resumeHref, showEpisodes } from '../lib/state';
+import { contenderIds, newSeed, seatWords, type ShowEpisode } from '../lib/cast';
+import { anyProgress, currentEpisode, displayName, episodeStage, episodeVerdict, isUnmasked, players, progress, resultsReady, resumeHref, showEpisodes } from '../lib/state';
 import { useShow } from './BlindFlightProvider';
 import { Shell } from './Chrome';
 import { btn, LowerThird } from './ui';
@@ -92,7 +92,7 @@ function EpisodeStage({ episode, current }: { episode: ShowEpisode; current: boo
 }
 
 export default function ShowScreen() {
-  const { state } = useShow();
+  const { state, dispatch, sfx } = useShow();
   const eps = progress(state);
   const current = currentEpisode(state);
   const ready = resultsReady(state);
@@ -129,6 +129,18 @@ export default function ShowScreen() {
               <Link href={resumeHref(state)} className={btn.primary}>
                 {eps.done === 0 && current?.number === 1 ? 'Start episode one' : `Continue: ${current?.title}`} <ChevronRight aria-hidden className="size-5" />
               </Link>
+            )}
+            {!anyProgress(state) && (
+              <button
+                type="button"
+                className={btn.ghost}
+                onClick={() => {
+                  dispatch({ type: 'reshuffle', seed: newSeed() });
+                  sfx('tick');
+                }}
+              >
+                <Shuffle aria-hidden className="size-4" /> Shuffle the line-up
+              </button>
             )}
           </div>
         </section>

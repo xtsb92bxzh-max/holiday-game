@@ -2,7 +2,7 @@ import assumptions from '../../data/assumptions.json';
 import { destinationById, destinations, hasPrice, itineraryById } from '../../lib/catalogue';
 import { isEligibleTrip, nightsBetween } from '../../lib/dates';
 import type { Destination, Itinerary } from '../../lib/types';
-import { bonusEpisode, episodes, type Episode } from '../data/episodes';
+import { bonusEpisode, episodes, mixedEpisodes, type Episode } from '../data/episodes';
 import { profiles, type Profile } from '../data/profiles';
 
 /**
@@ -70,10 +70,51 @@ export const isShowable = (id: string) => showable.has(id);
 
 export type ShowEpisode = Episode & { bonus: boolean; number: number };
 
-/** Featured episodes, then bonus episodes of up to three for any added contenders. */
-export function episodesFor(order: string[]): ShowEpisode[] {
+/** A small seeded generator, so a shuffled line-up survives a reload. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function seededShuffle<T>(list: readonly T[], seed: number): T[] {
+  const rand = mulberry32(seed);
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+export const newSeed = () => Math.floor(Math.random() * 2 ** 31);
+
+/** Rounds in a shuffled show: the featured contestants, three to a stage. */
+export const mixedRoundCount = Math.ceil(featuredIds.length / 3);
+
+/** The featured contestants regrouped at random: who shares a stage, the running order and the seats. */
+function mixedEpisodesFor(seed: number): Episode[] {
+  const ids = seededShuffle(featuredIds, seed);
+  const titles = seededShuffle(mixedEpisodes, seed + 1);
+  return Array.from({ length: mixedRoundCount }, (_, i) => ({
+    id: `round-${i + 1}`,
+    ...titles[i % titles.length],
+    cast: ids.slice(i * 3, i * 3 + 3),
+  }));
+}
+
+/**
+ * Featured episodes, then bonus episodes of up to three for any added contenders.
+ * With a seed, the featured contestants are shuffled; without one, the themed episodes run as written.
+ */
+export function episodesFor(order: string[], seed?: number | null): ShowEpisode[] {
   const inOrder = new Set(order);
-  const main = featuredEpisodes
+  const main = (seed == null ? featuredEpisodes : mixedEpisodesFor(seed))
     .map((e) => ({ ...e, cast: e.cast.filter((id) => inOrder.has(id)), bonus: false }))
     .filter((e) => e.cast.length > 0);
   const extras = order.filter((id) => !featured.has(id) && showable.has(id));
@@ -92,12 +133,12 @@ export function episodesFor(order: string[]): ShowEpisode[] {
 }
 
 /** Contestants in the order the show presents them. */
-export function ballotOrder(order: string[]): string[] {
-  return episodesFor(order).flatMap((e) => e.cast);
+export function ballotOrder(order: string[], seed?: number | null): string[] {
+  return episodesFor(order, seed).flatMap((e) => e.cast);
 }
 
-export function seatOf(destinationId: string, order: string[]): { episode: ShowEpisode; seat: number } | undefined {
-  for (const episode of episodesFor(order)) {
+export function seatOf(destinationId: string, order: string[], seed?: number | null): { episode: ShowEpisode; seat: number } | undefined {
+  for (const episode of episodesFor(order, seed)) {
     const i = episode.cast.indexOf(destinationId);
     if (i >= 0) return { episode, seat: i + 1 };
   }

@@ -9,11 +9,13 @@ import {
   contenderIds,
   episodesFor,
   featuredIds,
+  seededShuffle,
   selectedVariant,
   showDestinationIds,
   variantsFor,
   type ShowEpisode,
 } from '../src/blind-flight/lib/cast';
+import { mixedEpisodes } from '../src/blind-flight/data/episodes';
 import { costBreakdown, guessVerdict } from '../src/blind-flight/lib/cost';
 import { loadState, sanitise, saveState, STORAGE_KEY } from '../src/blind-flight/lib/persistence';
 import {
@@ -362,6 +364,48 @@ test('winner is a manual choice and can be changed', () => {
   assert.equal(s.winnerDestinationId, 'kaunas');
   s = reducer(s, { type: 'setWinner' });
   assert.equal(s.winnerDestinationId, undefined);
+});
+
+// ───────────── Shuffled line-ups ─────────────
+
+test('a new show shuffles who shares a stage, the running order and the seats', () => {
+  const s = run([{ type: 'start', seed: 12345 }]);
+  assert.equal(s.seed, 12345);
+  const eps = showEpisodes(s);
+  assert.equal(eps.length, 4);
+  assert.deepEqual(eps.map((e) => e.id), ['round-1', 'round-2', 'round-3', 'round-4']);
+  assert.ok(eps.every((e) => e.cast.length === 3 && mixedEpisodes.some((m) => m.title === e.title)));
+  assert.deepEqual([...eps.flatMap((e) => e.cast)].sort(), [...featuredIds].sort(), 'everyone appears exactly once');
+  assert.deepEqual(showEpisodes(s), eps, 'the same seed gives the same show, so a reload keeps it');
+  // Different seeds give different line-ups.
+  const lineups = new Set([1, 2, 3, 4, 5].map((seed) => JSON.stringify(episodesFor(featuredIds, seed).map((e) => e.cast))));
+  assert.ok(lineups.size > 1);
+  assert.deepEqual(seededShuffle([1, 2, 3], 7), seededShuffle([1, 2, 3], 7));
+});
+
+test('the line-up only changes before anything has happened', () => {
+  let s = run([{ type: 'start', seed: 1 }]);
+  assert.equal(reducer(s, { type: 'start', seed: 2 }).seed, 1, 'Continue keeps the show you started');
+  s = reducer(s, { type: 'reshuffle', seed: 3 });
+  assert.equal(s.seed, 3);
+  s = reducer(s, { type: 'nextQuestion', episodeId: showEpisodes(s)[0].id });
+  assert.equal(reducer(s, { type: 'reshuffle', seed: 4 }), s);
+  assert.equal(reducer(s, { type: 'reset' }).seed, null);
+  // A show already under way from before shuffling existed stays themed.
+  const old = run([{ type: 'nextQuestion', episodeId: ep.id }]);
+  assert.equal(reducer(old, { type: 'start', seed: 9 }).seed, null);
+});
+
+test('a shuffled show saves and reloads, and plays through to the results', () => {
+  const store = new MemoryStorage();
+  let s = run([{ type: 'start', seed: 99 }]);
+  for (const e of showEpisodes(s)) s = playAll(s, [e, e.cast[1], e.cast[1]]);
+  assert.equal(resultsReady(s), true);
+  saveState(store, s);
+  const loaded = loadState(store)!;
+  assert.equal(loaded.seed, 99);
+  assert.equal(resultsReady(loaded), true);
+  assert.equal(sanitise({ ...JSON.parse(JSON.stringify(s)), seed: 'banana' })!.seed, null);
 });
 
 // ───────────── Scoring ─────────────

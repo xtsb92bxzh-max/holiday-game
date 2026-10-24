@@ -90,6 +90,7 @@ export function sanitise(raw: unknown): GameState | null {
       traveller2: typeof nick.traveller2 === 'string' ? nick.traveller2.slice(0, 24) : '',
     },
     destinationOrder,
+    seed: typeof raw.seed === 'number' && Number.isInteger(raw.seed) && raw.seed >= 0 ? raw.seed : null,
     preferredItineraryByDestination: record(raw.preferredItineraryByDestination, (k, val) =>
       typeof val === 'string' && variantsFor(k).some((v) => v.id === val) ? val : undefined,
     ),
