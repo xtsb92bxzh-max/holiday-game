@@ -20,4 +20,10 @@ export const games: GameListing[] = [
     tagline: 'Love at first flight. Regret at baggage claim.',
     image: '/images/destinations/tallinn.jpg',
   },
+  {
+    slug: 'getaway-show',
+    title: 'The Great British Getaway Show',
+    tagline: 'Tonight, twelve cities enter. Two indecisive adults leave.',
+    image: '/images/destinations/krakow.jpg',
+  },
 ];

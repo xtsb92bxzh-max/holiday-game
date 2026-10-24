@@ -17,7 +17,7 @@ export default function Home() {
         <h1 className="marquee-text text-4xl leading-none sm:text-6xl">Holiday Games</h1>
         <p className="mt-4 font-serif text-base italic text-gold sm:text-xl">Pick tonight’s show.</p>
 
-        <ul className="mt-10 grid w-full max-w-4xl gap-6 sm:grid-cols-2">
+        <ul className="mt-10 grid w-full max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {games.map((game) => {
             const card = (
               <>
@@ -26,7 +26,7 @@ export default function Home() {
                     src={game.image}
                     alt=""
                     fill
-                    sizes="(min-width: 640px) 50vw, 100vw"
+                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                     className={`object-cover transition duration-500 ${
                       game.comingSoon ? 'grayscale opacity-60' : 'group-hover:scale-105'
                     }`}
