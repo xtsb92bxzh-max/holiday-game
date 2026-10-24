@@ -1,4 +1,5 @@
-import { episodesFor, featuredIds, isFeatured, isShowable, profileFor, variantsFor, type ShowEpisode } from './cast';
+import { episodesFor, featuredIds, isFeatured, isShowable, profileFor, selectedVariant, showDestinationIds, variantsFor, type ShowEpisode } from './cast';
+import { costBreakdown, guessVerdict } from './cost';
 
 export type PlayerId = 'traveller1' | 'traveller2';
 export type PlayMode = 'two_person' | 'quick';
@@ -17,6 +18,22 @@ export type EpisodeProgress = {
   picks: Partial<Record<PlayerId, string>>;
   /** Contestants unmasked so far in the reveal, in reveal order. */
   unmasked: string[];
+  /** Each traveller's guess at who their own date really is. */
+  cityGuesses: Partial<Record<PlayerId, string>>;
+  /** Points banked for a correct guess. Kept if you choose again. */
+  cityPoints: Partial<Record<PlayerId, number>>;
+  /** The contestant the price duel was about, fixed at the first guess. */
+  duelTarget?: string;
+  /** Each traveller's price for two in the price duel. */
+  priceGuesses: Partial<Record<PlayerId, number>>;
+  duelSkipped: boolean;
+};
+
+export type FinalProgress = {
+  /** One rescued contestant each. null means "no thanks". */
+  secondChance: Partial<Record<PlayerId, string | null>>;
+  choosing: boolean;
+  picks: Partial<Record<PlayerId, string>>;
 };
 
 export type GameState = {
@@ -31,6 +48,7 @@ export type GameState = {
   preferredItineraryByDestination: Record<string, string>;
   /** Keyed by episode id. */
   episodes: Record<string, EpisodeProgress>;
+  final: FinalProgress;
   /** Empty means "use the default finalists". */
   finalists: string[];
   winnerDestinationId?: string;
@@ -39,7 +57,18 @@ export type GameState = {
   reduceMotion: boolean | null;
 };
 
-export const emptyEpisode = (): EpisodeProgress => ({ questionsShown: 0, choosing: false, picks: {}, unmasked: [] });
+export const emptyEpisode = (): EpisodeProgress => ({
+  questionsShown: 0,
+  choosing: false,
+  picks: {},
+  unmasked: [],
+  cityGuesses: {},
+  cityPoints: {},
+  priceGuesses: {},
+  duelSkipped: false,
+});
+
+export const emptyFinal = (): FinalProgress => ({ secondChance: {}, choosing: false, picks: {} });
 
 export const initialState: GameState = {
   schemaVersion: 3,
@@ -50,6 +79,7 @@ export const initialState: GameState = {
   destinationOrder: featuredIds,
   preferredItineraryByDestination: {},
   episodes: {},
+  final: emptyFinal(),
   finalists: [],
   soundEnabled: false,
   reduceMotion: null,
@@ -64,11 +94,19 @@ export type Action =
   | { type: 'start' }
   | { type: 'nextQuestion'; episodeId: string }
   | { type: 'startChoosing'; episodeId: string }
-  | { type: 'pick'; episodeId: string; destinationId: string }
+  | { type: 'pick'; episodeId: string; destinationId: string; guessId?: string }
   | { type: 'unpick'; episodeId: string }
   | { type: 'passPhone'; episodeId: string }
   | { type: 'unmask'; episodeId: string }
   | { type: 'pickAgain'; episodeId: string }
+  | { type: 'priceGuess'; episodeId: string; player: PlayerId; value: number }
+  | { type: 'skipDuel'; episodeId: string }
+  | { type: 'secondChance'; player: PlayerId; destinationId: string | null }
+  | { type: 'startFinal' }
+  | { type: 'finalPick'; destinationId: string }
+  | { type: 'finalUnpick' }
+  | { type: 'finalPassPhone' }
+  | { type: 'finalAgain' }
   | { type: 'chooseItinerary'; destinationId: string; itineraryId: string }
   | { type: 'addContender'; destinationId: string }
   | { type: 'removeContender'; destinationId: string }
@@ -106,7 +144,7 @@ export function reducer(state: GameState, action: Action): GameState {
 
     case 'setMode':
       if (action.mode === state.mode) return state;
-      return { ...state, mode: action.mode, activePlayer: 'traveller1', episodes: {}, finalists: [], winnerDestinationId: undefined };
+      return { ...state, mode: action.mode, activePlayer: 'traveller1', episodes: {}, final: emptyFinal(), finalists: [], winnerDestinationId: undefined };
 
     case 'setNickname':
       return { ...state, nicknames: { ...state.nicknames, [action.player]: action.name.slice(0, 24) } };
@@ -130,7 +168,15 @@ export function reducer(state: GameState, action: Action): GameState {
         const picks = validPicks(p, e);
         if (!p.choosing || !e.cast.includes(action.destinationId) || picks[me]) return null;
         if (me === 'traveller2' && !picks.traveller1) return null;
-        return { ...p, picks: { ...p.picks, [me]: action.destinationId } };
+        // A guess only counts while the date is still masked.
+        const guess = action.guessId && guessOptions(e, action.destinationId).includes(action.guessId) ? action.guessId : undefined;
+        const banked = p.cityPoints[me] != null || !guess ? {} : { [me]: guess === action.destinationId ? cityPointsFor(p.questionsShown) : 0 };
+        return {
+          ...p,
+          picks: { ...p.picks, [me]: action.destinationId },
+          cityGuesses: { ...p.cityGuesses, [me]: guess },
+          cityPoints: { ...p.cityPoints, ...banked },
+        };
       });
       if (next === state) return state;
       // Once everyone has chosen, the next episode starts with Traveller 1 again.
@@ -144,8 +190,12 @@ export function reducer(state: GameState, action: Action): GameState {
       if (episodeStage(state, action.episodeId) !== 'handover') return state;
       return withEpisode(state, action.episodeId, (p) => {
         const picks = { ...p.picks };
+        const cityGuesses = { ...p.cityGuesses };
+        const cityPoints = { ...p.cityPoints };
         delete picks.traveller1;
-        return { ...p, picks };
+        delete cityGuesses.traveller1;
+        delete cityPoints.traveller1;
+        return { ...p, picks, cityGuesses, cityPoints };
       });
     }
 
@@ -162,9 +212,61 @@ export function reducer(state: GameState, action: Action): GameState {
 
     case 'pickAgain':
       return {
-        ...withEpisode(state, action.episodeId, (p) => ({ ...p, picks: {}, choosing: true })),
+        // The contestants are unmasked by now, so there is nothing left to guess or duel over.
+        ...withEpisode(state, action.episodeId, (p) => ({ ...p, picks: {}, cityGuesses: {}, choosing: true })),
         activePlayer: 'traveller1',
+        // New choices mean a new line-up for the final.
+        final: emptyFinal(),
+        winnerDestinationId: state.final.choosing ? undefined : state.winnerDestinationId,
       };
+
+    case 'priceGuess':
+      if (!choosers(state).includes(action.player) || !Number.isFinite(action.value) || action.value <= 0) return state;
+      return withEpisode(state, action.episodeId, (p) => {
+        if (episodeStage(state, action.episodeId) !== 'duel' || p.priceGuesses[action.player] != null) return null;
+        if (action.player === 'traveller2' && p.priceGuesses.traveller1 == null) return null;
+        const target = p.duelTarget ?? duelTarget(state, findEpisode(state, action.episodeId)!);
+        return { ...p, duelTarget: target, priceGuesses: { ...p.priceGuesses, [action.player]: Math.round(action.value) } };
+      });
+
+    case 'skipDuel':
+      return withEpisode(state, action.episodeId, (p) => (episodeStage(state, action.episodeId) === 'duel' ? { ...p, duelSkipped: true } : null));
+
+    case 'secondChance': {
+      if (!resultsReady(state) || state.final.choosing || !choosers(state).includes(action.player)) return state;
+      if (action.destinationId !== null && !secondChanceOptions(state).includes(action.destinationId)) return state;
+      return { ...state, final: { ...state.final, secondChance: { ...state.final.secondChance, [action.player]: action.destinationId } } };
+    }
+
+    case 'startFinal':
+      if (finalStage(state) !== 'secondChance' || !choosers(state).every((p) => state.final.secondChance[p] !== undefined)) return state;
+      return { ...state, activePlayer: 'traveller1', final: { ...state.final, choosing: true } };
+
+    case 'finalPick': {
+      const me = state.activePlayer;
+      const stage = finalStage(state);
+      if (stage !== 'choosing' || !finalPool(state).includes(action.destinationId) || state.final.picks[me]) return state;
+      if (me === 'traveller2' && !state.final.picks.traveller1) return state;
+      const final = { ...state.final, picks: { ...state.final.picks, [me]: action.destinationId } };
+      const next = { ...state, final };
+      if (!choosers(next).every((p) => final.picks[p])) return next;
+      // Agreement crowns the winner. A split waits for you to settle it.
+      const v = finalVerdict(next);
+      return { ...next, activePlayer: 'traveller1', winnerDestinationId: v?.kind === 'split' ? state.winnerDestinationId : v?.id };
+    }
+
+    case 'finalUnpick': {
+      if (finalStage(state) !== 'handover') return state;
+      const picks = { ...state.final.picks };
+      delete picks.traveller1;
+      return { ...state, final: { ...state.final, picks } };
+    }
+
+    case 'finalPassPhone':
+      return finalStage(state) === 'handover' ? { ...state, activePlayer: 'traveller2' } : state;
+
+    case 'finalAgain':
+      return { ...state, activePlayer: 'traveller1', final: emptyFinal(), winnerDestinationId: undefined };
 
     case 'chooseItinerary': {
       const variants = variantsFor(action.destinationId);
@@ -177,7 +279,7 @@ export function reducer(state: GameState, action: Action): GameState {
 
     case 'addContender':
       if (!isShowable(action.destinationId) || state.destinationOrder.includes(action.destinationId)) return state;
-      return { ...state, destinationOrder: [...state.destinationOrder, action.destinationId] };
+      return { ...state, destinationOrder: [...state.destinationOrder, action.destinationId], final: emptyFinal() };
 
     case 'removeContender': {
       const id = action.destinationId;
@@ -188,6 +290,7 @@ export function reducer(state: GameState, action: Action): GameState {
         ...state,
         destinationOrder: state.destinationOrder.filter((d) => d !== id),
         episodes,
+        final: emptyFinal(),
         finalists: state.finalists.filter((d) => d !== id),
         winnerDestinationId: state.winnerDestinationId === id ? undefined : state.winnerDestinationId,
       };
@@ -255,7 +358,7 @@ export function validPicks(p: EpisodeProgress, e: ShowEpisode): Partial<Record<P
   return out;
 }
 
-export type EpisodeStage = 'watching' | 'choosing' | 'handover' | 'reveal' | 'done';
+export type EpisodeStage = 'watching' | 'choosing' | 'handover' | 'reveal' | 'duel' | 'done';
 
 export function episodeStage(state: GameState, episodeId: string): EpisodeStage {
   const e = findEpisode(state, episodeId);
@@ -263,7 +366,8 @@ export function episodeStage(state: GameState, episodeId: string): EpisodeStage 
   const p = episodeProgress(state, episodeId);
   const picks = validPicks(p, e);
   if (choosers(state).every((pl) => picks[pl])) {
-    return e.cast.every((d) => isUnmasked(state, e.id, d)) ? 'done' : 'reveal';
+    if (!e.cast.every((d) => isUnmasked(state, e.id, d))) return 'reveal';
+    return duelResolved(state, e) ? 'done' : 'duel';
   }
   if (!p.choosing) return 'watching';
   if (state.mode === 'two_person' && picks.traveller1 && state.activePlayer === 'traveller1') return 'handover';
@@ -360,3 +464,132 @@ export const groupLabels = {
   chosen: 'Chosen',
   unpicked: 'Left on the podium',
 };
+
+// ───────────── Guessing and scoring (bragging rights only) ─────────────
+
+function hash(seed: string): number {
+  let h = 0;
+  for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h;
+}
+
+/** Fewer questions heard, more points: 4 on the one-liners alone, down to 1 after all three. */
+export function cityPointsFor(questionsShown: number): number {
+  return Math.max(1, 4 - questionsShown);
+}
+
+/** The real city plus three decoys from outside this episode, in a stable shuffled order. */
+export function guessOptions(e: ShowEpisode, destinationId: string): string[] {
+  const pool = showDestinationIds.filter((id) => !e.cast.includes(id));
+  const decoys = [...pool].sort((a, b) => hash(e.id + destinationId + a) - hash(e.id + destinationId + b)).slice(0, 3);
+  return [destinationId, ...decoys].sort((a, b) => hash(destinationId + a) - hash(destinationId + b));
+}
+
+export const priceOf = (state: GameState, id: string): number | null => {
+  const it = selectedVariant(id, state.preferredItineraryByDestination[id]);
+  return (it && costBreakdown(it)?.totalForTwo) ?? null;
+};
+
+/** The duel is over your date: the last contestant unmasked who has a real price. */
+export function duelTarget(state: GameState, e: ShowEpisode): string | undefined {
+  const stored = episodeProgress(state, e.id).duelTarget;
+  if (stored) return stored;
+  return [...revealOrder(state, e)].reverse().find((id) => priceOf(state, id) != null);
+}
+
+function duelResolved(state: GameState, e: ShowEpisode): boolean {
+  const p = episodeProgress(state, e.id);
+  if (p.duelSkipped || !duelTarget(state, e)) return true;
+  return choosers(state).every((pl) => p.priceGuesses[pl] != null);
+}
+
+export type DuelResult = { target: string; actual: number; guesses: Partial<Record<PlayerId, number>>; points: Partial<Record<PlayerId, number>> };
+
+/**
+ * Two travellers: closest without going over scores 2, plus 1 within 5%.
+ * If you both go over, nobody scores. Quick play scores the joke badge points.
+ */
+export function duelResult(state: GameState, e: ShowEpisode): DuelResult | undefined {
+  const p = episodeProgress(state, e.id);
+  const target = duelTarget(state, e);
+  if (!target || p.duelSkipped || !choosers(state).every((pl) => p.priceGuesses[pl] != null)) return undefined;
+  const actual = priceOf(state, target)!;
+  const points: Partial<Record<PlayerId, number>> = {};
+  if (state.mode === 'quick') {
+    points.traveller1 = guessVerdict(p.priceGuesses.traveller1!, actual).points;
+  } else {
+    const under = players.filter((pl) => p.priceGuesses[pl]! <= actual);
+    const best = Math.max(...under.map((pl) => p.priceGuesses[pl]!));
+    for (const pl of players) {
+      const g = p.priceGuesses[pl]!;
+      const win = under.includes(pl) && g === best;
+      points[pl] = win ? 2 + (Math.abs(actual - g) / actual <= 0.05 ? 1 : 0) : 0;
+    }
+  }
+  return { target, actual, guesses: p.priceGuesses, points };
+}
+
+export type Score = { city: number; price: number; total: number };
+
+export function scores(state: GameState): Record<PlayerId, Score> {
+  const out = Object.fromEntries(players.map((pl) => [pl, { city: 0, price: 0, total: 0 }])) as Record<PlayerId, Score>;
+  for (const e of showEpisodes(state)) {
+    const p = episodeProgress(state, e.id);
+    const duel = duelResult(state, e);
+    for (const pl of choosers(state)) {
+      out[pl].city += p.cityPoints[pl] ?? 0;
+      out[pl].price += duel?.points[pl] ?? 0;
+    }
+  }
+  for (const pl of players) out[pl].total = out[pl].city + out[pl].price;
+  return out;
+}
+
+/** Whoever is ahead on points, or nobody on a tie. */
+export function leader(state: GameState): PlayerId | undefined {
+  if (state.mode === 'quick') return undefined;
+  const s = scores(state);
+  if (s.traveller1.total === s.traveller2.total) return undefined;
+  return s.traveller1.total > s.traveller2.total ? 'traveller1' : 'traveller2';
+}
+
+// ───────────── Grand final ─────────────
+
+/** Everyone chosen by at least one of you, in show order. */
+export function chosenIds(state: GameState): string[] {
+  const g = groups(state);
+  return g.kind === 'quick' ? g.chosen : [...g.match, ...g.split];
+}
+
+/** Anyone nobody chose can be rescued. */
+export function secondChanceOptions(state: GameState): string[] {
+  return groups(state).unpicked;
+}
+
+export function finalPool(state: GameState): string[] {
+  const rescued = choosers(state)
+    .map((pl) => state.final.secondChance[pl])
+    .filter((id): id is string => typeof id === 'string');
+  return [...new Set([...chosenIds(state), ...rescued])];
+}
+
+export type FinalStage = 'locked' | 'secondChance' | 'choosing' | 'handover' | 'decided';
+
+export function finalStage(state: GameState): FinalStage {
+  if (!resultsReady(state)) return 'locked';
+  const f = state.final;
+  if (!f.choosing) return 'secondChance';
+  if (choosers(state).every((pl) => f.picks[pl])) return 'decided';
+  if (state.mode === 'two_person' && f.picks.traveller1 && state.activePlayer === 'traveller1') return 'handover';
+  return 'choosing';
+}
+
+export type FinalVerdict = { kind: 'match' | 'chosen'; id: string } | { kind: 'split'; ids: Record<PlayerId, string> };
+
+export function finalVerdict(state: GameState): FinalVerdict | undefined {
+  const f = state.final.picks;
+  if (state.mode === 'quick') return f.traveller1 ? { kind: 'chosen', id: f.traveller1 } : undefined;
+  if (!f.traveller1 || !f.traveller2) return undefined;
+  return f.traveller1 === f.traveller2 ? { kind: 'match', id: f.traveller1 } : { kind: 'split', ids: { traveller1: f.traveller1, traveller2: f.traveller2 } };
+}
+

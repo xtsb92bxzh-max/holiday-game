@@ -1,5 +1,5 @@
 import { featuredIds, isShowable, variantsFor } from './cast';
-import { emptyEpisode, initialState, MAX_FINALISTS, QUESTIONS, type EpisodeProgress, type GameState } from './state';
+import { emptyEpisode, emptyFinal, initialState, MAX_FINALISTS, players, QUESTIONS, type EpisodeProgress, type FinalProgress, type GameState, type PlayerId } from './state';
 
 export const STORAGE_KEY = 'blind-flight:v3';
 
@@ -32,7 +32,33 @@ function sanitiseEpisode(v: unknown, order: Set<string>): EpisodeProgress | unde
   const t2 = pickOf(picks.traveller2);
   if (t1) p.picks.traveller1 = t1;
   if (t2) p.picks.traveller2 = t2;
+  p.cityGuesses = perPlayer(v.cityGuesses, (x) => (typeof x === 'string' && isShowable(x) ? x : undefined));
+  p.cityPoints = perPlayer(v.cityPoints, (x) => (isCount(x) ? Math.min(4, Math.floor(x)) : undefined));
+  p.priceGuesses = perPlayer(v.priceGuesses, (x) => (isCount(x) && x > 0 ? Math.round(x) : undefined));
+  p.duelSkipped = v.duelSkipped === true;
+  if (typeof v.duelTarget === 'string' && order.has(v.duelTarget)) p.duelTarget = v.duelTarget;
   return p;
+}
+
+const isCount = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0;
+
+function perPlayer<T>(v: unknown, keep: (x: unknown) => T | undefined): Partial<Record<PlayerId, T>> {
+  const out: Partial<Record<PlayerId, T>> = {};
+  if (!isObj(v)) return out;
+  for (const pl of players) {
+    const kept = keep(v[pl]);
+    if (kept !== undefined) out[pl] = kept;
+  }
+  return out;
+}
+
+function sanitiseFinal(v: unknown): FinalProgress {
+  if (!isObj(v)) return emptyFinal();
+  return {
+    secondChance: perPlayer(v.secondChance, (x) => (x === null ? null : typeof x === 'string' && isShowable(x) ? x : undefined)),
+    choosing: v.choosing === true,
+    picks: perPlayer(v.picks, (x) => (typeof x === 'string' && isShowable(x) ? x : undefined)),
+  };
 }
 
 /**
@@ -68,15 +94,18 @@ export function sanitise(raw: unknown): GameState | null {
       typeof val === 'string' && variantsFor(k).some((v) => v.id === val) ? val : undefined,
     ),
     episodes: record(raw.episodes, (_, val) => sanitiseEpisode(val, order)),
+    final: sanitiseFinal(raw.final),
     finalists,
     winnerDestinationId: winner,
     soundEnabled: raw.soundEnabled === true,
     reduceMotion: typeof raw.reduceMotion === 'boolean' ? raw.reduceMotion : null,
   };
   // Quick play has one shared choice, so there is never a second traveller's pick.
-  if (mode === 'quick') for (const p of Object.values(state.episodes)) delete p.picks.traveller2;
+  if (mode === 'quick') {
+    for (const p of [...Object.values(state.episodes), state.final]) delete p.picks.traveller2;
+  }
   // Traveller 2 only ever holds the phone after Traveller 1 has chosen.
-  const t2Turn = Object.values(state.episodes).some((p) => p.choosing && p.picks.traveller1 && !p.picks.traveller2);
+  const t2Turn = [...Object.values(state.episodes), state.final].some((p) => p.choosing && p.picks.traveller1 && !p.picks.traveller2);
   if (!t2Turn) state.activePlayer = 'traveller1';
   return state;
 }

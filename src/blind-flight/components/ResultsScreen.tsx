@@ -26,7 +26,7 @@ import {
 } from '../lib/state';
 import { useShow } from './BlindFlightProvider';
 import { NotYet, Shell } from './Chrome';
-import { btn, PickChip } from './ui';
+import { btn, PickChip, Scoreboard } from './ui';
 
 function priceLine(state: GameState, id: string): string {
   const it = selectedVariant(id, state.preferredItineraryByDestination[id]);
@@ -219,10 +219,19 @@ export default function ResultsScreen() {
           </>
         )}
 
+        <section className="space-y-2 rounded-3xl border border-bf-cream/15 p-4 sm:p-5">
+          <h2 className="font-bold">Final scores</h2>
+          <Scoreboard detail />
+          {state.mode === 'two_person' && <p className="text-xs text-bf-cream/70">Points never change a match. In a split grand final, the leader gets the casting vote.</p>}
+        </section>
+
         <section className="flex flex-col items-center gap-4 text-center">
-          <p className="font-serif text-xl italic text-bf-custard">{copy.comparison}</p>
-          <Link href="/blind-flight/compare" className={btn.primary + ' text-xl'}>
+          <p className="font-serif text-xl italic text-bf-custard">The final: second chances, then one secret choice each.</p>
+          <Link href="/blind-flight/final" className={btn.primary + ' text-xl'}>
             To the grand final
+          </Link>
+          <Link href="/blind-flight/compare" className={btn.link}>
+            Or skip straight to the small print
           </Link>
         </section>
 

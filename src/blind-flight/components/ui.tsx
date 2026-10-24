@@ -1,10 +1,12 @@
 'use client';
 
-import { ExternalLink as ExternalIcon, Heart, Info } from 'lucide-react';
+import { Crown, ExternalLink as ExternalIcon, Heart, Info } from 'lucide-react';
 import Link from 'next/link';
 import assumptions from '@/data/assumptions.json';
 import { formatDate } from '@/lib/dates';
 import type { Itinerary } from '@/lib/types';
+import { choosers, displayName, leader, scores } from '../lib/state';
+import { useShow } from './BlindFlightProvider';
 
 export const btn = {
   primary:
@@ -47,6 +49,30 @@ export function PickChip({ who, className = '' }: { who: string; className?: str
       <Heart aria-hidden className="size-3.5 fill-current" />
       {who}
     </span>
+  );
+}
+
+/** Points from city guesses and price duels. Bragging rights, plus the casting vote in a split final. */
+export function Scoreboard({ detail = false, className = '' }: { detail?: boolean; className?: string }) {
+  const { state } = useShow();
+  const s = scores(state);
+  const top = leader(state);
+  return (
+    <div className={`flex flex-wrap items-center gap-2 text-sm ${className}`} aria-label="Scoreboard">
+      <span className="text-xs font-bold uppercase tracking-widest text-bf-seafoam">{state.mode === 'quick' ? 'Points' : 'Scoreboard'}</span>
+      {choosers(state).map((pl) => (
+        <span key={pl} className="inline-flex items-center gap-1.5 rounded-full bg-bf-cream/10 px-3 py-1">
+          {top === pl && <Crown aria-label="In the lead" className="size-4 text-bf-custard" />}
+          {state.mode === 'two_person' && <span>{displayName(state, pl)}</span>}
+          <strong className="tabular-nums text-bf-custard">{s[pl].total}</strong>
+          {detail && (
+            <span className="text-xs text-bf-cream/70">
+              ({s[pl].city} from guessing cities, {s[pl].price} from price duels)
+            </span>
+          )}
+        </span>
+      ))}
+    </div>
   );
 }
 

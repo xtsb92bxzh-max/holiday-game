@@ -50,7 +50,7 @@ function Status({ episode }: { episode: ShowEpisode }) {
           : `You chose ${name(v.id)}`;
     return <p className="font-semibold text-bf-seafoam">{text}</p>;
   }
-  const label = { watching: 'Not started', choosing: 'Choosing now', handover: 'Choosing now', reveal: 'Mid-reveal', done: '' }[stage];
+  const label = { watching: 'Not started', choosing: 'Choosing now', handover: 'Choosing now', reveal: 'Mid-reveal', duel: 'Price duel', done: '' }[stage];
   return <p className="text-sm text-bf-cream/70">{label}</p>;
 }
 

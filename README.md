@@ -82,11 +82,13 @@ The brief is in `docs/BLIND_FLIGHT_BUILD_BRIEF.md`.
 
 1. On the title screen you choose a two-person game (the default) or quick play, with optional nicknames.
 2. The show has four episodes of three hidden contestants. You watch each episode together: every contestant gives a one-liner, then answers the host's three questions. Answer n is clue n from `profiles.ts`.
-3. When the host calls time, Traveller 1 picks one contestant in secret and passes the phone. A full-screen cover hides the choice. Traveller 1 can change their mind until the phone is passed. Traveller 2 then picks from the same three.
+3. When the host calls time, Traveller 1 picks one contestant in secret and guesses which city it really is, from four options. A right guess scores 4 points on the one-liners alone, down to 1 after all three questions. Traveller 1 then passes the phone. A full-screen cover hides the choice. Traveller 1 can change their mind until the phone is passed. Traveller 2 then picks from the same three.
 4. The reveal unmasks the contestants nobody chose first, then anyone one of you chose, then a mutual choice. Each reveal card shows the photo, pitch, price and the awkward bit. Dates, flights, hotel, weather, links and the price breakdown sit behind "Full details".
-5. The episode ends with It's a Match! (you both chose the same contestant) or a Split decision. Choose again clears the choices and keeps the contestants unmasked.
-6. Results list the matches, the split decisions and everyone left on the podium. Anything can be reconsidered.
-7. The grand final compares two to four finalists side by side. Matches go in first, then split decisions. You pick the winner yourselves. You can copy, share or download a CSV summary, which leaves out nicknames.
+5. Once everyone is unmasked there is a price duel over your date, whose price stays hidden until then. Each of you types a masked guess for two. Closest without going over scores 2, plus 1 within 5%. Unpriced dates have no duel, and you can skip it.
+6. The episode ends with It's a Match! (you both chose the same contestant) or a Split decision. Choose again clears the choices and keeps the contestants unmasked and the points banked.
+7. Results list the matches, the split decisions and everyone left on the podium. Anything can be reconsidered. A scoreboard runs throughout. Points never change a match.
+8. The grand final (`/blind-flight/final`) starts with a second chance each: rescue one contestant nobody chose, or decline. Then you each choose the holiday in secret from everyone still standing. Agreement crowns the winner. In a split, the scoreboard leader may use a casting vote, or you can talk it over in the comparison.
+9. The comparison shows two to four finalists side by side. You can copy, share or download a CSV summary, which leaves out nicknames.
 
 Quick play has one shared choice per episode and produces a shortlist, never a "match".
 
@@ -100,7 +102,8 @@ Quick play has one shared choice per episode and produces a shortlist, never a "
 | `/blind-flight/show` | All episodes and their outcomes |
 | `/blind-flight/episode/[id]` | One episode: questions, secret choices, handover and reveal |
 | `/blind-flight/show/[id]` | One contestant's full profile, once their identity is public |
-| `/blind-flight/results` | Matches and split decisions |
+| `/blind-flight/results` | Matches, split decisions and the scoreboard |
+| `/blind-flight/final` | Second chances, the secret final choice and the winner |
 | `/blind-flight/compare` | Grand final comparison |
 | `/blind-flight/contenders` | More eligible contenders to add as a bonus round |
 | `/blind-flight/holidays` | Sensible mode |
@@ -116,7 +119,7 @@ Every route works on reload, with Back, and when opened directly. Pages that dep
 | `src/blind-flight/data/episodes.ts` | Episode titles, presenter lines and casts |
 | `src/blind-flight/data/copy.ts` | Presenter copy bank and the host's three questions |
 | `src/blind-flight/lib/cast.ts` | Which trips can appear, variants per destination, episodes and cautions |
-| `src/blind-flight/lib/cost.ts` | Price breakdown and the joke guess badges |
+| `src/blind-flight/lib/cost.ts` | Price breakdown and the quick-play duel badges |
 | `src/blind-flight/lib/state.ts` | Game state, actions and selectors |
 | `src/blind-flight/lib/persistence.ts` | Saving to `localStorage`, with a schema version and clean-up on load |
 

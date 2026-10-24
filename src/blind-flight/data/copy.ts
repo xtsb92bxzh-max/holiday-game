@@ -39,6 +39,12 @@ export const showCopy = {
   chosen: 'A date has been arranged. Bring a coat.',
 };
 
+export const finalCopy = {
+  secondChance: 'Before the final, one last chance. Each of you may rescue one contestant nobody chose.',
+  choose: 'One holiday. No conferring.',
+  split: 'Two hearts, two destinations. Somebody is going to have to compromise.',
+};
+
 export function pick<T>(list: T[], seed: string): T {
   let h = 0;
   for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;

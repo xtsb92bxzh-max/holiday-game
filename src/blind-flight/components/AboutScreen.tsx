@@ -49,6 +49,11 @@ export default function AboutScreen() {
           </p>
         </section>
 
+        <section className="space-y-2">
+          <h2 className="text-xl font-bold text-bf-custard">The scoring</h2>
+          <p>City guesses and price duels earn points for bragging rights. Points never change which destinations match.</p>
+          <p>The only place they count is a split grand final, where the leader may use a casting vote. You can always talk it over instead.</p>
+        </section>
       </article>
     </Shell>
   );

@@ -51,6 +51,7 @@ const nav = [
   { href: '/blind-flight/show', label: 'The show' },
   { href: '/blind-flight/contenders', label: 'More eligible contenders' },
   { href: '/blind-flight/results', label: 'Results' },
+  { href: '/blind-flight/final', label: 'Grand final' },
   { href: '/blind-flight/compare', label: 'Skip to comparison' },
   { href: '/blind-flight/holidays', label: copy.refuse },
   { href: '/blind-flight/about', label: 'About these prices' },

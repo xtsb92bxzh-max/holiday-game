@@ -17,7 +17,17 @@ import {
 import { costBreakdown, guessVerdict } from '../src/blind-flight/lib/cost';
 import { loadState, sanitise, saveState, STORAGE_KEY } from '../src/blind-flight/lib/persistence';
 import {
+  cityPointsFor,
   defaultFinalists,
+  duelResult,
+  duelTarget,
+  finalPool,
+  finalStage,
+  finalVerdict,
+  guessOptions,
+  leader,
+  priceOf,
+  scores,
   episodeProgress,
   episodeStage,
   episodeVerdict,
@@ -31,6 +41,7 @@ import {
   resultsReady,
   resumeHref,
   revealOrder,
+  secondChanceOptions,
   showEpisodes,
   type Action,
   type GameState,
@@ -52,10 +63,12 @@ const play = (e: ShowEpisode, a: string, b: string, from: GameState = initialSta
     from,
   );
 const unmaskAll = (e: ShowEpisode, from: GameState) => run(e.cast.map(() => ({ type: 'unmask', episodeId: e.id }) as Action), from);
+/** Unmasks everyone and skips the price duel. */
+const finish = (e: ShowEpisode, from: GameState) => reducer(unmaskAll(e, from), { type: 'skipDuel', episodeId: e.id });
 const playAll = (from: GameState, ...rounds: [ShowEpisode, string, string][]) =>
-  rounds.reduce((s, [e, a, b]) => unmaskAll(e, play(e, a, b, s)), from);
+  rounds.reduce((s, [e, a, b]) => finish(e, play(e, a, b, s)), from);
 const playQuick = (from: GameState, e: ShowEpisode, id: string) =>
-  unmaskAll(e, run([{ type: 'startChoosing', episodeId: e.id }, { type: 'pick', episodeId: e.id, destinationId: id }], from));
+  finish(e, run([{ type: 'startChoosing', episodeId: e.id }, { type: 'pick', episodeId: e.id, destinationId: id }], from));
 
 class MemoryStorage {
   data = new Map<string, string>();
@@ -259,8 +272,10 @@ test('the reveal unmasks the turned-down first and a mutual choice last', () => 
   assert.notEqual(episodeProgress(s, ep.id).unmasked[0], two);
   s = run([{ type: 'unmask', episodeId: ep.id }, { type: 'unmask', episodeId: ep.id }], s);
   assert.equal(episodeProgress(s, ep.id).unmasked.at(-1), two);
-  assert.equal(episodeStage(s, ep.id), 'done');
+  assert.equal(episodeStage(s, ep.id), 'duel');
   assert.equal(reducer(s, { type: 'unmask', episodeId: ep.id }), s);
+  s = reducer(s, { type: 'skipDuel', episodeId: ep.id });
+  assert.equal(episodeStage(s, ep.id), 'done');
   assert.deepEqual(episodeVerdict(s, ep), { kind: 'match', id: two });
 
   const split = play(ep, one, three);
@@ -293,7 +308,7 @@ test('9. quick play has one shared choice per episode and never produces a match
   let s = run([{ type: 'setMode', mode: 'quick' }, { type: 'startChoosing', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: one }]);
   assert.equal(episodeStage(s, ep.id), 'reveal');
   assert.equal(reducer(s, { type: 'passPhone', episodeId: ep.id }), s);
-  s = run([{ type: 'unmask', episodeId: ep.id }, { type: 'unmask', episodeId: ep.id }, { type: 'unmask', episodeId: ep.id }], s);
+  s = finish(ep, s);
   assert.deepEqual(episodeVerdict(s, ep), { kind: 'chosen', id: one });
   for (const e of featuredEpisodes.slice(1)) s = playQuick(s, e, e.cast[0]);
   const g = groups(s);
@@ -347,6 +362,174 @@ test('winner is a manual choice and can be changed', () => {
   assert.equal(s.winnerDestinationId, 'kaunas');
   s = reducer(s, { type: 'setWinner' });
   assert.equal(s.winnerDestinationId, undefined);
+});
+
+// ───────────── Scoring ─────────────
+
+test('city guesses: four options including the truth, and fewer questions score more', () => {
+  const opts = guessOptions(ep, two);
+  assert.equal(opts.length, 4);
+  assert.ok(opts.includes(two));
+  assert.ok(opts.every((id) => id === two || !ep.cast.includes(id)), 'decoys never come from the same episode');
+  assert.deepEqual(guessOptions(ep, two), opts, 'stable across renders');
+  assert.deepEqual([0, 1, 2, 3].map(cityPointsFor), [4, 3, 2, 1]);
+
+  const wrong = opts.find((id) => id !== two)!;
+  let s = run([
+    { type: 'nextQuestion', episodeId: ep.id },
+    { type: 'startChoosing', episodeId: ep.id },
+    { type: 'pick', episodeId: ep.id, destinationId: two, guessId: two },
+    { type: 'passPhone', episodeId: ep.id },
+    { type: 'pick', episodeId: ep.id, destinationId: two, guessId: wrong },
+  ]);
+  assert.deepEqual(episodeProgress(s, ep.id).cityPoints, { traveller1: 3, traveller2: 0 });
+  assert.equal(scores(s).traveller1.city, 3);
+  // A guess that isn't on the card is ignored.
+  s = run([{ type: 'startChoosing', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: one, guessId: 'atlantis' }]);
+  assert.equal(episodeProgress(s, ep.id).cityGuesses.traveller1, undefined);
+});
+
+test('changing your mind before the handover forfeits the banked guess; choosing again keeps it', () => {
+  let s = run([
+    { type: 'startChoosing', episodeId: ep.id },
+    { type: 'pick', episodeId: ep.id, destinationId: two, guessId: two },
+    { type: 'unpick', episodeId: ep.id },
+  ]);
+  assert.deepEqual(episodeProgress(s, ep.id).cityPoints, {});
+  s = finish(ep, run([{ type: 'pick', episodeId: ep.id, destinationId: two, guessId: two }, { type: 'passPhone', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: one }], s));
+  const before = scores(s).traveller1.city;
+  assert.equal(before, 4);
+  s = reducer(s, { type: 'pickAgain', episodeId: ep.id });
+  assert.equal(scores(s).traveller1.city, before);
+});
+
+test('the price duel is over your date, hides nothing it shouldn’t, and closest without going over wins', () => {
+  let s = unmaskAll(ep, play(ep, two, two));
+  assert.equal(episodeStage(s, ep.id), 'duel');
+  assert.equal(duelTarget(s, ep), two);
+  const actual = priceOf(s, two)!;
+  assert.equal(reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: 100 }), s, 'Traveller 1 guesses first');
+  assert.equal(reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: -5 }), s);
+  s = reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: actual - 10 });
+  assert.equal(episodeStage(s, ep.id), 'duel');
+  s = reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: actual + 1 });
+  assert.equal(episodeStage(s, ep.id), 'done');
+  assert.deepEqual(duelResult(s, ep)!.points, { traveller1: 3, traveller2: 0 }, 'within 5% earns the bonus; over earns nothing');
+  assert.equal(leader(s), 'traveller1');
+
+  const both = run(
+    [
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: actual * 2 },
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: actual * 3 },
+    ],
+    unmaskAll(ep, play(ep, two, two)),
+  );
+  assert.deepEqual(duelResult(both, ep)!.points, { traveller1: 0, traveller2: 0 });
+
+  const tie = run(
+    [
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: Math.floor(actual / 2) },
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: Math.floor(actual / 2) },
+    ],
+    unmaskAll(ep, play(ep, two, two)),
+  );
+  assert.deepEqual(duelResult(tie, ep)!.points, { traveller1: 2, traveller2: 2 });
+  assert.equal(leader(tie), undefined);
+});
+
+test('the duel target is fixed once guessing starts, and points never change a match', () => {
+  let s = unmaskAll(ep, play(ep, one, three));
+  const target = duelTarget(s, ep)!;
+  s = run(
+    [
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: 300 },
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: 400 },
+    ],
+    s,
+  );
+  const scored = s;
+  s = run([{ type: 'pickAgain', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: two }, { type: 'passPhone', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: two }], s);
+  assert.equal(duelTarget(s, ep), target);
+  assert.deepEqual(scores(s), scores(scored));
+  assert.deepEqual(episodeVerdict(s, ep), { kind: 'match', id: two });
+});
+
+test('quick play duels score the badge points', () => {
+  let s = run([{ type: 'setMode', mode: 'quick' }, { type: 'startChoosing', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: one }]);
+  s = unmaskAll(ep, s);
+  s = reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: priceOf(s, duelTarget(s, ep)!)! });
+  assert.equal(episodeStage(s, ep.id), 'done');
+  assert.equal(scores(s).traveller1.price, 3);
+  assert.equal(reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: 5 }), s);
+});
+
+// ───────────── Grand final ─────────────
+
+const decideShow = (from: GameState = initialState) => {
+  const [e1, e2, e3, e4] = featuredEpisodes;
+  return playAll(from, [e1, e1.cast[0], e1.cast[0]], [e2, e2.cast[0], e2.cast[1]], [e3, e3.cast[2], e3.cast[2]], [e4, e4.cast[1], e4.cast[1]]);
+};
+
+test('the final opens only once the show is decided, with a second chance each', () => {
+  assert.equal(finalStage(initialState), 'locked');
+  let s = decideShow();
+  assert.equal(finalStage(s), 'secondChance');
+  const [e1, e2, e3, e4] = featuredEpisodes;
+  assert.deepEqual(finalPool(s), [e1.cast[0], e3.cast[2], e4.cast[1], e2.cast[0], e2.cast[1]]);
+  const rescue = secondChanceOptions(s)[0];
+  assert.equal(reducer(s, { type: 'secondChance', player: 'traveller1', destinationId: e1.cast[0] }), s, 'only someone nobody chose');
+  s = reducer(s, { type: 'startFinal' });
+  assert.equal(finalStage(s), 'secondChance', 'not until everyone has decided');
+  s = run(
+    [
+      { type: 'secondChance', player: 'traveller1', destinationId: rescue },
+      { type: 'secondChance', player: 'traveller2', destinationId: null },
+      { type: 'startFinal' },
+    ],
+    s,
+  );
+  assert.equal(finalStage(s), 'choosing');
+  assert.ok(finalPool(s).includes(rescue));
+  assert.equal(finalPool(s).length, 6);
+});
+
+test('agreeing in the final crowns the winner; a split waits, and the leader can settle it', () => {
+  const ready = run(
+    [
+      { type: 'secondChance', player: 'traveller1', destinationId: null },
+      { type: 'secondChance', player: 'traveller2', destinationId: null },
+      { type: 'startFinal' },
+    ],
+    decideShow(),
+  );
+  const [a, b] = finalPool(ready);
+  let s = reducer(ready, { type: 'finalPick', destinationId: a });
+  assert.equal(finalStage(s), 'handover');
+  s = run([{ type: 'finalPassPhone' }, { type: 'finalPick', destinationId: a }], s);
+  assert.equal(finalStage(s), 'decided');
+  assert.deepEqual(finalVerdict(s), { kind: 'match', id: a });
+  assert.equal(s.winnerDestinationId, a);
+
+  s = run([{ type: 'finalPick', destinationId: a }, { type: 'finalPassPhone' }, { type: 'finalPick', destinationId: b }], ready);
+  assert.equal(finalVerdict(s)!.kind, 'split');
+  assert.equal(s.winnerDestinationId, undefined, 'a split final names no winner by itself');
+  assert.equal(reducer(s, { type: 'finalPick', destinationId: b }), s);
+  s = reducer(s, { type: 'finalAgain' });
+  assert.equal(finalStage(s), 'secondChance');
+});
+
+test('choosing again in an episode reopens the final', () => {
+  let s = run(
+    [
+      { type: 'secondChance', player: 'traveller1', destinationId: null },
+      { type: 'secondChance', player: 'traveller2', destinationId: null },
+      { type: 'startFinal' },
+    ],
+    decideShow(),
+  );
+  s = reducer(s, { type: 'pickAgain', episodeId: ep.id });
+  assert.equal(finalStage(s), 'locked');
+  assert.deepEqual(s.final.secondChance, {});
 });
 
 // ───────────── Persistence ─────────────

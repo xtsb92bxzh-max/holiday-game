@@ -13,10 +13,14 @@ import { profileFor, selectedVariant, seatWords, type ShowEpisode } from '../lib
 import { costBreakdown } from '../lib/cost';
 import {
   choosers,
+  cityPointsFor,
   displayName,
+  duelResult,
+  duelTarget,
   episodeProgress,
   episodeStage,
   episodeVerdict,
+  guessOptions,
   isUnmasked,
   players,
   QUESTIONS,
@@ -29,7 +33,7 @@ import { useShow } from './BlindFlightProvider';
 import { Mark, Shell } from './Chrome';
 import { AwkwardBit, TripDetails } from './ContestantScreen';
 import { Breakdown, PendingFacts } from './Price';
-import { btn, HostSays, LowerThird, PickChip } from './ui';
+import { btn, HostSays, LowerThird, PickChip, Scoreboard } from './ui';
 
 const seatOfIn = (e: ShowEpisode, id: string) => seatWords[e.cast.indexOf(id)];
 const hasClues = (e: ShowEpisode) => e.cast.every((id) => profileFor(id).hasClues);
@@ -166,7 +170,9 @@ function Watching({ e }: { e: ShowEpisode }) {
 function Choosing({ e }: { e: ShowEpisode }) {
   const { state, dispatch, sfx } = useShow();
   const [selected, setSelected] = useState<string>();
+  const [guess, setGuess] = useState<string | null>();
   const shown = episodeProgress(state, e.id).questionsShown;
+  const canGuess = selected != null && !isUnmasked(state, e.id, selected);
   const who = displayName(state, state.activePlayer);
   const quick = state.mode === 'quick';
 
@@ -193,6 +199,7 @@ function Choosing({ e }: { e: ShowEpisode }) {
               role="radio"
               aria-checked={on}
               onClick={() => {
+                if (id !== selected) setGuess(undefined);
                 setSelected(id);
                 sfx('tick');
               }}
@@ -217,26 +224,52 @@ function Choosing({ e }: { e: ShowEpisode }) {
         })}
       </div>
 
+      {canGuess && (
+        <fieldset className="space-y-3 rounded-3xl border-2 border-dashed border-bf-seafoam/50 p-4">
+          <legend className="px-2 text-xs font-bold uppercase tracking-widest text-bf-seafoam">Bonus round</legend>
+          <p className="font-bold">Who do you think Number {seatOfIn(e, selected)} really is?</p>
+          <p className="text-sm text-bf-cream/75">
+            Right first time scores {cityPointsFor(shown)} point{cityPointsFor(shown) === 1 ? '' : 's'}. Fewer questions, more points.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {guessOptions(e, selected).map((id) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={guess === id}
+                onClick={() => setGuess(id)}
+                className="min-h-11 rounded-xl border-2 border-bf-cream/25 px-3 py-2 text-left text-sm font-semibold transition hover:border-bf-cream/60 aria-pressed:border-bf-seafoam aria-pressed:bg-bf-seafoam aria-pressed:text-bf-ink"
+              >
+                {destinationById[id].name}
+              </button>
+            ))}
+          </div>
+          <button type="button" aria-pressed={guess === null} onClick={() => setGuess(null)} className={btn.link + ' aria-pressed:text-bf-seafoam'}>
+            No idea. Surprise me
+          </button>
+        </fieldset>
+      )}
+
       <button
         type="button"
         className={btn.primary + ' w-full text-xl sm:w-auto'}
-        disabled={!selected}
+        disabled={!selected || (canGuess && guess === undefined)}
         onClick={() => {
           if (!selected) return;
-          dispatch({ type: 'pick', episodeId: e.id, destinationId: selected });
+          dispatch({ type: 'pick', episodeId: e.id, destinationId: selected, guessId: guess ?? undefined });
           sfx('keep');
         }}
       >
         <Lock aria-hidden className="size-5" />
-        {selected ? `Lock in Number ${seatOfIn(e, selected)}` : 'Choose a contestant'}
+        {!selected ? 'Choose a contestant' : canGuess && guess === undefined ? 'Make a guess first' : `Lock in Number ${seatOfIn(e, selected)}`}
       </button>
     </section>
   );
 }
 
 /** A full-screen cover with nothing about the first choice on it. */
-function Handover({ e }: { e: ShowEpisode }) {
-  const { state, dispatch, sfx } = useShow();
+export function HandoverCover({ onPass, onUndo, what }: { onPass: () => void; onUndo: () => void; what: string }) {
+  const { state, sfx } = useShow();
   const t1 = displayName(state, 'traveller1');
   const t2 = displayName(state, 'traveller2');
   return (
@@ -253,25 +286,36 @@ function Handover({ e }: { e: ShowEpisode }) {
         <Smartphone aria-hidden className="mx-auto size-10 text-bf-cream/70" />
         <HostSays>{showCopy.handover}</HostSays>
         <p className="text-bf-cream/85">
-          {t1}’s choice is sealed. {t2} now chooses from the same three.
+          {t1}’s choice is sealed. {t2} now chooses from {what}.
         </p>
         <div className="flex flex-col items-center gap-3">
           <button
             type="button"
             className={btn.primary + ' text-xl'}
             onClick={() => {
-              dispatch({ type: 'passPhone', episodeId: e.id });
+              onPass();
               sfx('fanfare');
             }}
           >
-            I’m {t2}. Show me the three
+            I’m {t2}. Show me
           </button>
-          <button type="button" className={btn.link} onClick={() => dispatch({ type: 'unpick', episodeId: e.id })}>
+          <button type="button" className={btn.link} onClick={onUndo}>
             Wait, {t1} wants to change their mind
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+function Handover({ e }: { e: ShowEpisode }) {
+  const { dispatch } = useShow();
+  return (
+    <HandoverCover
+      what="the same three"
+      onPass={() => dispatch({ type: 'passPhone', episodeId: e.id })}
+      onUndo={() => dispatch({ type: 'unpick', episodeId: e.id })}
+    />
   );
 }
 
@@ -286,6 +330,9 @@ function RevealCard({ e, id }: { e: ShowEpisode; id: string }) {
   const it = selectedVariant(id, state.preferredItineraryByDestination[id]);
   const c = it && costBreakdown(it);
   const who = pickersOf(state, e, id);
+  const p = episodeProgress(state, e.id);
+  // Your date's price stays behind the curtain until the duel is settled.
+  const priceHidden = episodeStage(state, e.id) === 'duel' && duelTarget(state, e) === id;
   return (
     <motion.article
       initial={reduceMotion ? false : { clipPath: 'inset(0 50% 0 50%)' }}
@@ -307,9 +354,24 @@ function RevealCard({ e, id }: { e: ShowEpisode; id: string }) {
             who.map((p) => <PickChip key={p} who={state.mode === 'quick' ? 'Your choice' : `${displayName(state, p)} chose`} />)
           )}
         </div>
+        {who.map((pl) => {
+          const g = p.cityGuesses[pl];
+          if (!g) return null;
+          const right = g === id;
+          return (
+            <p key={pl} className={`text-sm font-semibold ${right ? 'text-bf-seafoam' : 'text-bf-cream/75'}`}>
+              {state.mode === 'quick' ? 'You' : displayName(state, pl)} guessed {destinationById[g].name}.{' '}
+              {right ? `Correct: +${p.cityPoints[pl] ?? 0}` : 'Not even close.'}
+            </p>
+          );
+        })}
         <p className="font-serif text-lg italic text-bf-custard">{profileFor(id).shortPitch}</p>
         <p className="text-xl font-bold">
-          {c ? (
+          {priceHidden ? (
+            <>
+              £??? <span className="text-base font-normal text-bf-cream/80">for two · price duel below</span>
+            </>
+          ) : c ? (
             <>
               {formatGBP(c.headline)} <span className="text-base font-normal text-bf-cream/80">for two · {formatGBP(c.perPerson, { pence: true })} each</span>
             </>
@@ -323,12 +385,122 @@ function RevealCard({ e, id }: { e: ShowEpisode; id: string }) {
             <summary className="flex min-h-11 cursor-pointer items-center font-bold">Full details: dates, flights, hotel and links</summary>
             <div className="space-y-4 pb-3 pt-2">
               <TripDetails id={id} it={it} />
-              <div className="bf-paper rounded-2xl p-4">{c ? <Breakdown it={it} /> : <PendingFacts it={it} />}</div>
+              {!priceHidden && <div className="bf-paper rounded-2xl p-4">{c ? <Breakdown it={it} /> : <PendingFacts it={it} />}</div>}
             </div>
           </details>
         )}
       </div>
     </motion.article>
+  );
+}
+
+function PriceInput({ label, onLock }: { label: string; onLock: (n: number) => void }) {
+  const [text, setText] = useState('');
+  const n = Number(text.replace(/[£,\s]/g, ''));
+  const ok = text.trim() !== '' && Number.isFinite(n) && n > 0;
+  return (
+    <form
+      className="flex flex-col gap-2 sm:flex-row sm:items-end"
+      onSubmit={(ev) => {
+        ev.preventDefault();
+        if (ok) onLock(Math.round(n));
+      }}
+    >
+      <label className="flex-1 text-sm font-bold">
+        {label}
+        {/* Masked so the other traveller can't read it over your shoulder. */}
+        <input
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="£ for two"
+          value={text}
+          onChange={(ev) => setText(ev.target.value)}
+          className="mt-1 block w-full rounded-xl border-2 border-bf-ink/20 bg-white px-4 py-3 text-2xl font-bold tabular-nums text-bf-ink placeholder:text-base placeholder:font-normal"
+        />
+      </label>
+      <button type="submit" className={btn.primary} disabled={!ok}>
+        <Lock aria-hidden className="size-5" /> Lock it in
+      </button>
+    </form>
+  );
+}
+
+function Duel({ e }: { e: ShowEpisode }) {
+  const { state, dispatch, sfx } = useShow();
+  const p = episodeProgress(state, e.id);
+  const target = duelTarget(state, e)!;
+  const d = destinationById[target];
+  const next = choosers(state).find((pl) => p.priceGuesses[pl] == null);
+  const quick = state.mode === 'quick';
+  return (
+    <section aria-labelledby="duel-heading" className="bf-paper space-y-4 rounded-3xl p-5 sm:p-6">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.25em] text-bf-red">Price duel</p>
+        <h2 id="duel-heading" className="bf-display text-3xl text-bf-red">
+          What does {d.name} cost?
+        </h2>
+        <p className="mt-1 text-sm">
+          The estimated total for both of you: return flights, the room, and an allowance for bags and transfers.{' '}
+          {quick ? 'Close guesses earn points.' : 'Closest without going over scores 2, with a bonus point within 5%. Go over and you score nothing.'}
+        </p>
+      </div>
+      {!quick && (
+        <ul className="flex flex-wrap gap-2 text-sm">
+          {choosers(state).map((pl) => (
+            <li key={pl} className="rounded-full bg-bf-ink/10 px-3 py-1 font-semibold">
+              {displayName(state, pl)}: {p.priceGuesses[pl] != null ? 'locked in' : 'thinking'}
+            </li>
+          ))}
+        </ul>
+      )}
+      {next && (
+        <PriceInput
+          key={next}
+          label={quick ? 'Your guess' : `${displayName(state, next)}, your guess`}
+          onLock={(value) => {
+            dispatch({ type: 'priceGuess', episodeId: e.id, player: next, value });
+            sfx(next === choosers(state).at(-1) ? 'fanfare' : 'tick');
+          }}
+        />
+      )}
+      <button type="button" className="min-h-11 text-sm underline decoration-dotted underline-offset-4" onClick={() => dispatch({ type: 'skipDuel', episodeId: e.id })}>
+        Skip the duel
+      </button>
+    </section>
+  );
+}
+
+function DuelOutcome({ e }: { e: ShowEpisode }) {
+  const { state } = useShow();
+  const r = duelResult(state, e);
+  if (!r) return null;
+  const d = destinationById[r.target];
+  const winners = choosers(state).filter((pl) => (r.points[pl] ?? 0) > 0);
+  return (
+    <section className="rounded-3xl border-2 border-bf-custard/60 bg-black/25 p-5 text-center">
+      <p className="text-xs font-bold uppercase tracking-[0.25em] text-bf-seafoam">Price duel</p>
+      <p className="mt-1 text-lg">
+        {d.name} costs <strong className="text-bf-custard">{formatGBP(r.actual, { pence: true })}</strong> for two.
+      </p>
+      <ul className="mt-2 space-y-1 text-sm">
+        {choosers(state).map((pl) => (
+          <li key={pl}>
+            {state.mode === 'quick' ? 'You' : displayName(state, pl)} guessed {formatGBP(r.guesses[pl]!)}
+            {r.guesses[pl]! > r.actual ? ' (over)' : ''}: +{r.points[pl] ?? 0}
+          </li>
+        ))}
+      </ul>
+      {state.mode === 'two_person' && (
+        <p className="mt-2 font-serif italic text-bf-custard">
+          {winners.length === 0
+            ? 'You both went over. The finance department is appalled.'
+            : winners.length === 2
+              ? 'A dead heat. Suspicious.'
+              : `${displayName(state, winners[0])} takes the duel.`}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -422,8 +594,11 @@ function Reveal({ e }: { e: ShowEpisode }) {
         </button>
       )}
 
+      {stage === 'duel' && <Duel e={e} />}
+
       {stage === 'done' && (
         <>
+          <DuelOutcome e={e} />
           <Verdict e={e} />
           <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
             {after ? (
@@ -439,7 +614,7 @@ function Reveal({ e }: { e: ShowEpisode }) {
               type="button"
               className={btn.ghost}
               onClick={() => {
-                if (window.confirm('Clear the choices for this episode and choose again? The contestants stay revealed.'))
+                if (window.confirm('Clear the choices for this episode and choose again? The contestants stay revealed and your points are kept.'))
                   dispatch({ type: 'pickAgain', episodeId: e.id });
               }}
             >
@@ -485,6 +660,7 @@ export default function EpisodeScreen({ id }: { id: string }) {
           </p>
           <h1 className="bf-display text-4xl text-bf-custard sm:text-5xl">{e.title}</h1>
           <LowerThird label="Host">{e.presenterLine}</LowerThird>
+          <Scoreboard />
         </div>
 
         {(stage === 'watching' || stage === 'choosing') && <Podiums e={e} />}
@@ -492,7 +668,7 @@ export default function EpisodeScreen({ id }: { id: string }) {
         {/* Keyed by chooser so the second traveller never inherits the first one's selection. */}
         {stage === 'choosing' && <Choosing key={state.activePlayer} e={e} />}
         {stage === 'handover' && <Handover e={e} />}
-        {(stage === 'reveal' || stage === 'done') && <Reveal e={e} />}
+        {(stage === 'reveal' || stage === 'duel' || stage === 'done') && <Reveal e={e} />}
       </div>
     </Shell>
   );
