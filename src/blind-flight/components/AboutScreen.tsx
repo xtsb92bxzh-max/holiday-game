@@ -35,7 +35,7 @@ export default function AboutScreen() {
         <section className="space-y-2">
           <h2 className="text-xl font-bold text-bf-custard">The three price statuses</h2>
           <ul className="list-disc space-y-2 pl-5">
-            <li>Indicative price: a dated fare and a room quote for these exact dates. Only these have a total and a price round.</li>
+            <li>Indicative price: a dated fare and a room quote for these exact dates. Only these have a total.</li>
             <li>Price pending: a flight timetable and a room quote exist, but no return fare has been matched. The room quote is shown on its own.</li>
             <li>Needs manual review: a room quote exists, but no flights were established. These appear in the holiday list only.</li>
           </ul>
@@ -50,8 +50,9 @@ export default function AboutScreen() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-xl font-bold text-bf-custard">The guessing game</h2>
-          <p>Price guesses are for fun. They never affect which destinations match or how anything is ranked.</p>
+          <h2 className="text-xl font-bold text-bf-custard">The scoring</h2>
+          <p>City guesses and price duels earn points for bragging rights. Points never change which destinations match.</p>
+          <p>The only place they count is a split grand final, where the leader may use a casting vote. You can always talk it over instead.</p>
         </section>
       </article>
     </Shell>

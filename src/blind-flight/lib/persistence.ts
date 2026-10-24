@@ -1,12 +1,11 @@
 import { featuredIds, isShowable, variantsFor } from './cast';
-import { emptyProgress, initialState, MAX_FINALISTS, type GameState, type PlayerProgress, type Vote } from './state';
+import { emptyEpisode, emptyFinal, initialState, MAX_FINALISTS, players, QUESTIONS, type EpisodeProgress, type FinalProgress, type GameState, type PlayerId } from './state';
 
-export const STORAGE_KEY = 'blind-flight:v2';
+export const STORAGE_KEY = 'blind-flight:v3';
 
 type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const votes = new Set<Vote>(['keep', 'maybe', 'pass']);
 
 function record<T>(v: unknown, keep: (key: string, value: unknown) => T | undefined): Record<string, T> {
   if (!isObj(v)) return {};
@@ -18,24 +17,47 @@ function record<T>(v: unknown, keep: (key: string, value: unknown) => T | undefi
   return out;
 }
 
-function sanitiseProgress(v: unknown, order: Set<string>): PlayerProgress {
-  if (!isObj(v)) return emptyProgress();
-  const isNum = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0;
+function sanitiseEpisode(v: unknown, order: Set<string>): EpisodeProgress | undefined {
+  if (!isObj(v)) return undefined;
+  const shown = typeof v.questionsShown === 'number' && Number.isFinite(v.questionsShown) ? Math.floor(v.questionsShown) : 0;
+  const picks = isObj(v.picks) ? v.picks : {};
+  const pickOf = (x: unknown) => (typeof x === 'string' && order.has(x) ? x : undefined);
+  const p: EpisodeProgress = {
+    ...emptyEpisode(),
+    questionsShown: Math.max(0, Math.min(QUESTIONS, shown)),
+    choosing: v.choosing === true,
+    unmasked: Array.isArray(v.unmasked) ? v.unmasked.filter((id): id is string => typeof id === 'string' && order.has(id)) : [],
+  };
+  const t1 = pickOf(picks.traveller1);
+  const t2 = pickOf(picks.traveller2);
+  if (t1) p.picks.traveller1 = t1;
+  if (t2) p.picks.traveller2 = t2;
+  p.cityGuesses = perPlayer(v.cityGuesses, (x) => (typeof x === 'string' && isShowable(x) ? x : undefined));
+  p.cityPoints = perPlayer(v.cityPoints, (x) => (isCount(x) ? Math.min(4, Math.floor(x)) : undefined));
+  p.priceGuesses = perPlayer(v.priceGuesses, (x) => (isCount(x) && x > 0 ? Math.round(x) : undefined));
+  p.duelSkipped = v.duelSkipped === true;
+  if (typeof v.duelTarget === 'string' && order.has(v.duelTarget)) p.duelTarget = v.duelTarget;
+  return p;
+}
+
+const isCount = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0;
+
+function perPlayer<T>(v: unknown, keep: (x: unknown) => T | undefined): Partial<Record<PlayerId, T>> {
+  const out: Partial<Record<PlayerId, T>> = {};
+  if (!isObj(v)) return out;
+  for (const pl of players) {
+    const kept = keep(v[pl]);
+    if (kept !== undefined) out[pl] = kept;
+  }
+  return out;
+}
+
+function sanitiseFinal(v: unknown): FinalProgress {
+  if (!isObj(v)) return emptyFinal();
   return {
-    votes: record(v.votes, (k, val) => (order.has(k) && votes.has(val as Vote) ? (val as Vote) : undefined)),
-    guessedPricesGBP: record(v.guessedPricesGBP, (_, val) => (isNum(val) ? val : undefined)),
-    priceRevealed: record(v.priceRevealed, (_, val) => (val === true ? (true as const) : undefined)),
-    identityRevealed: record(v.identityRevealed, (k, val) => (val === true && order.has(k) ? (true as const) : undefined)),
-    cluesShown: record(v.cluesShown, (_, val) => (isNum(val) ? Math.min(3, Math.floor(val)) : undefined)),
-    history: Array.isArray(v.history)
-      ? v.history
-          .filter(
-            (h): h is { destinationId: string; previous?: Vote } =>
-              isObj(h) && typeof h.destinationId === 'string' && order.has(h.destinationId) && (h.previous === undefined || votes.has(h.previous as Vote)),
-          )
-          .map((h) => ({ destinationId: h.destinationId, previous: h.previous }))
-          .slice(-100)
-      : [],
+    secondChance: perPlayer(v.secondChance, (x) => (x === null ? null : typeof x === 'string' && isShowable(x) ? x : undefined)),
+    choosing: v.choosing === true,
+    picks: perPlayer(v.picks, (x) => (typeof x === 'string' && isShowable(x) ? x : undefined)),
   };
 }
 
@@ -44,7 +66,7 @@ function sanitiseProgress(v: unknown, order: Set<string>): PlayerProgress {
  * or pointing at destinations that no longer exist is dropped rather than trusted.
  */
 export function sanitise(raw: unknown): GameState | null {
-  if (!isObj(raw) || raw.schemaVersion !== 2) return null;
+  if (!isObj(raw) || raw.schemaVersion !== 3) return null;
   const savedOrder = Array.isArray(raw.destinationOrder) ? raw.destinationOrder.filter((id): id is string => typeof id === 'string') : [];
   // Featured contestants are always on the show; added contenders survive if still valid.
   const destinationOrder = [...featuredIds, ...savedOrder.filter((id) => isShowable(id) && !featuredIds.includes(id))].filter(
@@ -53,12 +75,10 @@ export function sanitise(raw: unknown): GameState | null {
   const order = new Set(destinationOrder);
   const mode = raw.mode === 'quick' ? 'quick' : 'two_person';
   const nick = isObj(raw.nicknames) ? raw.nicknames : {};
-  const done = isObj(raw.ballotComplete) ? raw.ballotComplete : {};
   const finalists = Array.isArray(raw.finalists)
     ? raw.finalists.filter((id): id is string => typeof id === 'string' && isShowable(id)).slice(0, MAX_FINALISTS)
     : [];
   const winner = typeof raw.winnerDestinationId === 'string' && isShowable(raw.winnerDestinationId) ? raw.winnerDestinationId : undefined;
-  const active = typeof raw.activeDestinationId === 'string' && order.has(raw.activeDestinationId) ? raw.activeDestinationId : undefined;
 
   const state: GameState = {
     ...initialState,
@@ -69,25 +89,25 @@ export function sanitise(raw: unknown): GameState | null {
       traveller1: typeof nick.traveller1 === 'string' ? nick.traveller1.slice(0, 24) : '',
       traveller2: typeof nick.traveller2 === 'string' ? nick.traveller2.slice(0, 24) : '',
     },
-    activeDestinationId: active,
     destinationOrder,
+    seed: typeof raw.seed === 'number' && Number.isInteger(raw.seed) && raw.seed >= 0 ? raw.seed : null,
     preferredItineraryByDestination: record(raw.preferredItineraryByDestination, (k, val) =>
       typeof val === 'string' && variantsFor(k).some((v) => v.id === val) ? val : undefined,
     ),
-    players: {
-      traveller1: sanitiseProgress(isObj(raw.players) ? raw.players.traveller1 : undefined, order),
-      traveller2: sanitiseProgress(isObj(raw.players) ? raw.players.traveller2 : undefined, order),
-    },
-    ballotComplete: { traveller1: done.traveller1 === true, traveller2: mode === 'two_person' && done.traveller2 === true },
-    showOtherVotes: raw.showOtherVotes === true,
+    episodes: record(raw.episodes, (_, val) => sanitiseEpisode(val, order)),
+    final: sanitiseFinal(raw.final),
     finalists,
     winnerDestinationId: winner,
     soundEnabled: raw.soundEnabled === true,
     reduceMotion: typeof raw.reduceMotion === 'boolean' ? raw.reduceMotion : null,
   };
-  // Traveller 2 cannot be mid-ballot before Traveller 1 has finished.
-  if (state.activePlayer === 'traveller2' && !state.ballotComplete.traveller1) state.activePlayer = 'traveller1';
-  if (!state.ballotComplete.traveller1) state.ballotComplete.traveller2 = false;
+  // Quick play has one shared choice, so there is never a second traveller's pick.
+  if (mode === 'quick') {
+    for (const p of [...Object.values(state.episodes), state.final]) delete p.picks.traveller2;
+  }
+  // Traveller 2 only ever holds the phone after Traveller 1 has chosen.
+  const t2Turn = [...Object.values(state.episodes), state.final].some((p) => p.choosing && p.picks.traveller1 && !p.picks.traveller2);
+  if (!t2Turn) state.activePlayer = 'traveller1';
   return state;
 }
 

@@ -8,7 +8,7 @@ import assumptions from '@/data/assumptions.json';
 import { destinationById } from '@/lib/catalogue';
 import type { ImageCredit } from '@/lib/types';
 import { copy } from '../data/copy';
-import { displayName, phase, progress, resultsReady } from '../lib/state';
+import { progress, resultsReady, resumeHref } from '../lib/state';
 import { useShow } from './BlindFlightProvider';
 import { btn } from './ui';
 
@@ -51,6 +51,7 @@ const nav = [
   { href: '/blind-flight/show', label: 'The show' },
   { href: '/blind-flight/contenders', label: 'More eligible contenders' },
   { href: '/blind-flight/results', label: 'Results' },
+  { href: '/blind-flight/final', label: 'Grand final' },
   { href: '/blind-flight/compare', label: 'Skip to comparison' },
   { href: '/blind-flight/holidays', label: copy.refuse },
   { href: '/blind-flight/about', label: 'About these prices' },
@@ -86,15 +87,7 @@ export function Header() {
   const { state } = useShow();
   const pathname = usePathname();
   const p = progress(state);
-  const ph = phase(state);
-  const status =
-    ph === 'results'
-      ? state.mode === 'quick'
-        ? 'Shortlist ready'
-        : 'Both ballots in'
-      : ph === 'handover'
-        ? 'Pass the phone'
-        : `${p.voted} of ${p.total} — ${displayName(state, state.activePlayer)}`;
+  const status = resultsReady(state) ? (state.mode === 'quick' ? 'Shortlist ready' : 'Results are in') : `Episode ${Math.min(p.done + 1, p.total)} of ${p.total}`;
 
   return (
     <header className="sticky top-0 z-40 border-b border-bf-cream/10 bg-bf-deep/90 backdrop-blur supports-[backdrop-filter]:bg-bf-deep/75">
@@ -185,7 +178,7 @@ export function Footer() {
             type="button"
             className={btn.link}
             onClick={() => {
-              if (window.confirm('Clear both ballots, guesses and finalists and start the show again?')) dispatch({ type: 'reset' });
+              if (window.confirm('Clear every choice and finalist and start the show again?')) dispatch({ type: 'reset' });
             }}
           >
             Reset the whole show
@@ -208,18 +201,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Shown when a page needs both ballots and they are not in yet. */
+/** Shown when a page needs the whole show decided and it is not yet. */
 export function NotYet({ title, children }: { title: string; children?: React.ReactNode }) {
   const { state } = useShow();
-  const ph = phase(state);
-  const href = ph === 'handover' ? '/blind-flight/handover' : '/blind-flight/show';
   return (
     <section className="mx-auto max-w-xl px-4 py-16 text-center">
       <h1 className="bf-logo text-4xl">{title}</h1>
       <div className="mt-4 space-y-3 text-bf-cream/85">{children}</div>
       <div className="mt-8 flex flex-col items-center gap-3">
-        <Link href={href} className={btn.primary}>
-          {ph === 'handover' ? 'Go to the handover' : 'Back to the show'}
+        <Link href={resumeHref(state)} className={btn.primary}>
+          Back to the show
         </Link>
         {!resultsReady(state) && (
           <Link href="/blind-flight/holidays" className={btn.link}>

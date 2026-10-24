@@ -37,6 +37,19 @@ export const episodes: Episode[] = [
   },
 ];
 
+/**
+ * Titles for a shuffled line-up, where any three contestants can share a
+ * stage. None of them depends on who is in the episode.
+ */
+export const mixedEpisodes: Pick<Episode, 'title' | 'presenterLine'>[] = [
+  { title: 'The Opening Night', presenterLine: 'Three hopefuls, one podium each, and nobody has read the small print.' },
+  { title: 'The Smooth Operators', presenterLine: 'Every one of them claims excellent transport links.' },
+  { title: 'The Wildcards', presenterLine: 'We were told to expect surprises. So were they.' },
+  { title: 'The Charm Offensive', presenterLine: 'Prepare to be flattered by a city.' },
+  { title: 'The Hand-Luggage Hearts', presenterLine: 'They’ve packed light. Their expectations have not.' },
+  { title: 'Last Orders', presenterLine: 'Three more hopefuls, and the bar is still open.' },
+];
+
 /** Contestants added from “More eligible contenders” appear in bonus episodes of up to three. */
 export const bonusEpisode = {
   title: 'The Late Arrivals',

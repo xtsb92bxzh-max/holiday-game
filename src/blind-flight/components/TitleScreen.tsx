@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { Users, Zap } from 'lucide-react';
 import { copy } from '../data/copy';
-import { featuredIds } from '../lib/cast';
-import { players, progress, resumeHref, type PlayMode } from '../lib/state';
+import { featuredIds, newSeed } from '../lib/cast';
+import { anyProgress, players, progress, resumeHref, type PlayMode } from '../lib/state';
 import { useShow } from './BlindFlightProvider';
 import { Logo, Mark, Toggles } from './Chrome';
 import { btn, HostSays } from './ui';
@@ -15,13 +15,13 @@ const modes: { id: PlayMode; title: string; blurb: string; Icon: typeof Users }[
   {
     id: 'two_person',
     title: 'Two-person game',
-    blurb: 'You each vote in private on this phone, then pass it over. Matches are revealed together.',
+    blurb: 'Watch each episode together, then choose in secret and pass the phone. Matches are revealed together.',
     Icon: Users,
   },
   {
     id: 'quick',
     title: 'Quick play',
-    blurb: 'One shared set of votes and a faster show. You still get a shortlist.',
+    blurb: 'One shared choice per episode and a faster show. You still get a shortlist.',
     Icon: Zap,
   },
 ];
@@ -29,11 +29,11 @@ const modes: { id: PlayMode; title: string; blurb: string; Icon: typeof Users }[
 export default function TitleScreen() {
   const { state, dispatch, sfx } = useShow();
   const router = useRouter();
-  const anyVotes = players.some((p) => Object.keys(state.players[p].votes).length > 0);
-  const p1 = progress(state, 'traveller1');
+  const anyChoices = anyProgress(state);
+  const p = progress(state);
 
   const start = () => {
-    dispatch({ type: 'start' });
+    dispatch({ type: 'start', seed: newSeed() });
     sfx('fanfare');
     router.push(state.started ? resumeHref(state) : '/blind-flight/show');
   };
@@ -102,7 +102,7 @@ export default function TitleScreen() {
                     checked={state.mode === id}
                     className="mt-1 size-5 accent-[#f3c95e]"
                     onChange={() => {
-                      if (anyVotes && !window.confirm('Changing how you play clears the votes so far. Carry on?')) return;
+                      if (anyChoices && !window.confirm('Changing how you play clears the choices so far. Carry on?')) return;
                       dispatch({ type: 'setMode', mode: id });
                     }}
                   />
@@ -149,7 +149,7 @@ export default function TitleScreen() {
               Skip to the holidays
             </Link>
             <div className="flex flex-wrap items-center justify-center gap-x-5">
-              <Link href="/blind-flight/show" className={btn.link} onClick={() => dispatch({ type: 'start' })}>
+              <Link href="/blind-flight/show" className={btn.link} onClick={() => dispatch({ type: 'start', seed: newSeed() })}>
                 Skip intro
               </Link>
               <Link href="/blind-flight/about" className={btn.link}>
@@ -160,7 +160,7 @@ export default function TitleScreen() {
                   type="button"
                   className={btn.link}
                   onClick={() => {
-                    if (window.confirm('Clear both ballots, guesses and finalists and start again?')) dispatch({ type: 'reset' });
+                    if (window.confirm('Clear every choice and finalist and start again?')) dispatch({ type: 'reset' });
                   }}
                 >
                   Start again
@@ -169,7 +169,7 @@ export default function TitleScreen() {
             </div>
             {state.started && (
               <p className="text-center text-xs text-bf-cream/60">
-                Saved on this phone: {p1.voted} of {p1.total} judged by {state.mode === 'quick' ? 'you both' : 'Traveller 1'}.
+                Saved on this phone: {p.done} of {p.total} episodes decided.
               </p>
             )}
           </div>

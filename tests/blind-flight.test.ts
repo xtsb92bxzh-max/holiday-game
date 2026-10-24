@@ -9,33 +9,68 @@ import {
   contenderIds,
   episodesFor,
   featuredIds,
+  seededShuffle,
   selectedVariant,
   showDestinationIds,
   variantsFor,
+  type ShowEpisode,
 } from '../src/blind-flight/lib/cast';
+import { mixedEpisodes } from '../src/blind-flight/data/episodes';
 import { costBreakdown, guessVerdict } from '../src/blind-flight/lib/cost';
 import { loadState, sanitise, saveState, STORAGE_KEY } from '../src/blind-flight/lib/persistence';
 import {
-  canSeeOtherVotes,
+  cityPointsFor,
   defaultFinalists,
+  duelResult,
+  duelTarget,
+  finalPool,
+  finalStage,
+  finalVerdict,
+  guessOptions,
+  leader,
+  priceOf,
+  scores,
+  episodeProgress,
+  episodeStage,
+  episodeVerdict,
+  groupLabels,
   groups,
+  identityPublic,
   initialState,
-  nextUnvoted,
-  phase,
+  isUnmasked,
+  QUESTIONS,
   reducer,
   resultsReady,
   resumeHref,
+  revealOrder,
+  secondChanceOptions,
+  showEpisodes,
   type Action,
   type GameState,
-  type Vote,
 } from '../src/blind-flight/lib/state';
-import { finalistRows, summaryCsv, summaryText } from '../src/blind-flight/lib/summary';
-import { matchCategory } from '../src/blind-flight/lib/voteMatching';
+import { finalistRows, summaryCsv, summaryText, verdictFor } from '../src/blind-flight/lib/summary';
 import { profiles } from '../src/blind-flight/data/profiles';
 
 const run = (actions: Action[], from: GameState = initialState) => actions.reduce(reducer, from);
-const voteAll = (v: Vote | ((id: string, i: number) => Vote)): Action[] =>
-  featuredIds.map((id, i) => ({ type: 'vote', destinationId: id, vote: typeof v === 'function' ? v(id, i) : v }));
+
+/** Calls time, takes both secret choices and unmasks everyone. */
+const play = (e: ShowEpisode, a: string, b: string, from: GameState = initialState) =>
+  run(
+    [
+      { type: 'startChoosing', episodeId: e.id },
+      { type: 'pick', episodeId: e.id, destinationId: a },
+      { type: 'passPhone', episodeId: e.id },
+      { type: 'pick', episodeId: e.id, destinationId: b },
+    ],
+    from,
+  );
+const unmaskAll = (e: ShowEpisode, from: GameState) => run(e.cast.map(() => ({ type: 'unmask', episodeId: e.id }) as Action), from);
+/** Unmasks everyone and skips the price duel. */
+const finish = (e: ShowEpisode, from: GameState) => reducer(unmaskAll(e, from), { type: 'skipDuel', episodeId: e.id });
+const playAll = (from: GameState, ...rounds: [ShowEpisode, string, string][]) =>
+  rounds.reduce((s, [e, a, b]) => finish(e, play(e, a, b, s)), from);
+const playQuick = (from: GameState, e: ShowEpisode, id: string) =>
+  finish(e, run([{ type: 'startChoosing', episodeId: e.id }, { type: 'pick', episodeId: e.id, destinationId: id }], from));
 
 class MemoryStorage {
   data = new Map<string, string>();
@@ -146,14 +181,10 @@ test('more contenders exist outside the featured twelve and can join as bonus ep
   assert.equal(run([{ type: 'addContender', destinationId: 'riga' }]).destinationOrder.length, 12, 'unviable trips cannot join');
 });
 
-// ───────────── Price rounds ─────────────
+// ───────────── Trips and prices ─────────────
 
-test('4 & scenario 6. switching Kaunas from 4 to 5 nights changes the trip and resets the guess', () => {
-  let s = run([
-    { type: 'revealIdentity', destinationId: 'kaunas' },
-    { type: 'guess', itineraryId: 'EU002', value: 350 },
-    { type: 'revealPrice', itineraryId: 'EU002' },
-  ]);
+test('4 & scenario 6. switching Kaunas from 4 to 5 nights changes the trip', () => {
+  let s = initialState;
   assert.equal(selectedVariant('kaunas', s.preferredItineraryByDestination.kaunas)!.id, 'EU002');
   s = reducer(s, { type: 'chooseItinerary', destinationId: 'kaunas', itineraryId: 'EU004' });
   const it = selectedVariant('kaunas', s.preferredItineraryByDestination.kaunas)!;
@@ -161,12 +192,6 @@ test('4 & scenario 6. switching Kaunas from 4 to 5 nights changes the trip and r
   assert.equal(it.nights, 5);
   assert.equal(it.departDate, '2027-01-17');
   assert.equal(it.estimatedTotalForTwoGBP, 402.87);
-  assert.equal(s.players.traveller1.guessedPricesGBP.EU002, undefined);
-  assert.equal(s.players.traveller1.priceRevealed.EU002, undefined);
-  assert.equal(s.players.traveller1.identityRevealed.kaunas, true, 'the city stays revealed');
-  // Switching back does not resurrect the old guess either.
-  s = reducer(s, { type: 'chooseItinerary', destinationId: 'kaunas', itineraryId: 'EU002' });
-  assert.equal(s.players.traveller1.priceRevealed.EU002, undefined);
   // An itinerary from another destination is refused.
   assert.equal(reducer(s, { type: 'chooseItinerary', destinationId: 'kaunas', itineraryId: 'EU008' }), s);
 });
@@ -184,142 +209,148 @@ test('scenario 7. unpriced Venice and Helsinki have no total but keep their room
   assert.match(summaryText(rows), /Price pending/);
 });
 
-test('guess badges are entertainment only', () => {
+test('guess badges', () => {
   assert.equal(guessVerdict(300, 298.18).badge, 'Unnecessarily Accurate');
   assert.equal(guessVerdict(900, 298.18).badge, 'Big Spender');
   assert.equal(guessVerdict(100, 298.18).badge, 'Eternal Optimist');
-  const a = run([...voteAll('keep'), { type: 'completeBallot' }, { type: 'startSecondBallot' }, ...voteAll('keep'), { type: 'completeBallot' }]);
-  const b = run([{ type: 'guess', itineraryId: 'EU001', value: 298 }, { type: 'revealPrice', itineraryId: 'EU001' }], a);
-  assert.deepEqual(groups(a), groups(b), '9. price guesses cannot affect matching');
 });
 
-// ───────────── Voting and matching ─────────────
+// ───────────── Episodes ─────────────
 
-test('8. matching rules, including unknown votes', () => {
-  assert.equal(matchCategory('keep', 'keep'), 'match');
-  assert.equal(matchCategory('keep', 'maybe'), 'potential');
-  assert.equal(matchCategory('maybe', 'keep'), 'potential');
-  assert.equal(matchCategory('maybe', 'maybe'), 'potential');
-  assert.equal(matchCategory('keep', 'pass'), 'questions');
-  assert.equal(matchCategory('pass', 'maybe'), 'questions');
-  assert.equal(matchCategory('pass', 'pass'), 'mutual_rejection');
-  assert.equal(matchCategory('keep', undefined), 'incomplete');
-  assert.equal(matchCategory(undefined, 'pass'), 'incomplete', 'unknown is not a pass');
+const featuredEpisodes = episodesFor(featuredIds);
+
+const ep = featuredEpisodes[0];
+const [one, two, three] = ep.cast;
+
+test('the host asks up to three questions, and none once the choosing starts', () => {
+  let s = run([1, 2, 3, 4].map(() => ({ type: 'nextQuestion', episodeId: ep.id }) as Action));
+  assert.equal(episodeProgress(s, ep.id).questionsShown, QUESTIONS);
+  s = run([{ type: 'startChoosing', episodeId: ep.id }]);
+  assert.equal(reducer(s, { type: 'nextQuestion', episodeId: ep.id }), s);
+  assert.equal(reducer(initialState, { type: 'nextQuestion', episodeId: 'atlantis' }), initialState);
 });
 
-function twoBallots(t1: (id: string, i: number) => Vote, t2: (id: string, i: number) => Vote) {
-  return run([
-    { type: 'start' },
-    ...voteAll(t1),
-    { type: 'completeBallot' },
-    { type: 'startSecondBallot' },
-    ...voteAll(t2),
-    { type: 'completeBallot' },
+test('7. two-person choosing is secret: Traveller 1, handover, Traveller 2, then the reveal', () => {
+  let s = initialState;
+  assert.equal(episodeStage(s, ep.id), 'watching');
+  assert.equal(reducer(s, { type: 'pick', episodeId: ep.id, destinationId: one }), s, 'no picking before the host calls time');
+  s = reducer(s, { type: 'startChoosing', episodeId: ep.id });
+  assert.equal(episodeStage(s, ep.id), 'choosing');
+  assert.equal(reducer(s, { type: 'pick', episodeId: ep.id, destinationId: 'prague' }), s, 'only this episode’s cast');
+  s = reducer(s, { type: 'pick', episodeId: ep.id, destinationId: two });
+  assert.equal(episodeStage(s, ep.id), 'handover');
+  assert.equal(reducer(s, { type: 'pick', episodeId: ep.id, destinationId: one }), s, 'Traveller 1 has already chosen');
+  assert.equal(episodeVerdict(s, ep), undefined, 'nothing is decided with one choice in');
+  assert.equal(identityPublic(s, two), false);
+  s = reducer(s, { type: 'passPhone', episodeId: ep.id });
+  assert.equal(s.activePlayer, 'traveller2');
+  assert.equal(episodeStage(s, ep.id), 'choosing');
+  s = reducer(s, { type: 'pick', episodeId: ep.id, destinationId: two });
+  assert.equal(episodeStage(s, ep.id), 'reveal');
+  assert.equal(s.activePlayer, 'traveller1', 'the next episode starts with Traveller 1');
+  assert.equal(identityPublic(s, two), false, 'still masked until the reveal reaches them');
+});
+
+test('Traveller 1 can change their mind before passing the phone, but not after', () => {
+  let s = run([
+    { type: 'startChoosing', episodeId: ep.id },
+    { type: 'pick', episodeId: ep.id, destinationId: one },
+    { type: 'unpick', episodeId: ep.id },
   ]);
-}
+  assert.equal(episodeStage(s, ep.id), 'choosing');
+  s = run([{ type: 'pick', episodeId: ep.id, destinationId: three }, { type: 'passPhone', episodeId: ep.id }], s);
+  assert.equal(reducer(s, { type: 'unpick', episodeId: ep.id }), s);
+});
 
-test('scenarios 1–4. keep/keep, keep/maybe, keep/pass and pass/pass land in the right groups', () => {
-  const t1: Vote[] = ['keep', 'keep', 'keep', 'pass'];
-  const t2: Vote[] = ['keep', 'maybe', 'pass', 'pass'];
-  const s = twoBallots(
-    (_, i) => t1[i % 4],
-    (_, i) => t2[i % 4],
-  );
+test('Traveller 2 can never choose first', () => {
+  const s = { ...run([{ type: 'startChoosing', episodeId: ep.id }]), activePlayer: 'traveller2' as const };
+  assert.equal(reducer(s, { type: 'pick', episodeId: ep.id, destinationId: one }), s);
+});
+
+test('the reveal unmasks the turned-down first and a mutual choice last', () => {
+  let s = play(ep, two, two);
+  assert.deepEqual(revealOrder(s, ep).at(-1), two);
+  s = reducer(s, { type: 'unmask', episodeId: ep.id });
+  assert.notEqual(episodeProgress(s, ep.id).unmasked[0], two);
+  s = run([{ type: 'unmask', episodeId: ep.id }, { type: 'unmask', episodeId: ep.id }], s);
+  assert.equal(episodeProgress(s, ep.id).unmasked.at(-1), two);
+  assert.equal(episodeStage(s, ep.id), 'duel');
+  assert.equal(reducer(s, { type: 'unmask', episodeId: ep.id }), s);
+  s = reducer(s, { type: 'skipDuel', episodeId: ep.id });
+  assert.equal(episodeStage(s, ep.id), 'done');
+  assert.deepEqual(episodeVerdict(s, ep), { kind: 'match', id: two });
+
+  const split = play(ep, one, three);
+  assert.equal(revealOrder(split, ep)[0], two, 'nobody chose number two, so they go first');
+  assert.deepEqual(episodeVerdict(split, ep), { kind: 'split', ids: { traveller1: one, traveller2: three } });
+});
+
+test('scenarios 1–4 & 8. matches, split decisions and the default final', () => {
+  const [e1, e2, e3, e4] = featuredEpisodes;
+  let s = playAll(initialState, [e1, e1.cast[0], e1.cast[0]], [e2, e2.cast[0], e2.cast[1]], [e3, e3.cast[2], e3.cast[2]]);
+  assert.equal(resultsReady(s), false, 'not until every episode is decided');
+  assert.deepEqual(defaultFinalists(s), []);
+  assert.equal(verdictFor(s, e1.cast[0]), '');
+  s = playAll(s, [e4, e4.cast[1], e4.cast[2]]);
+  assert.equal(resultsReady(s), true);
   const g = groups(s);
   assert.equal(g.kind, 'two_person');
   if (g.kind !== 'two_person') return;
-  assert.ok(g.match.includes(featuredIds[0]));
-  assert.ok(g.potential.includes(featuredIds[1]));
-  assert.ok(g.questions.includes(featuredIds[2]));
-  assert.ok(!g.match.includes(featuredIds[2]), 'keep + pass is not a match');
-  assert.ok(g.mutual_rejection.includes(featuredIds[3]));
-  assert.deepEqual(defaultFinalists(s).slice(0, 2), [featuredIds[0], featuredIds[4]]);
-  // Mutual passes are recoverable through Reconsider.
-  const r = reducer(s, { type: 'toggleFinalist', destinationId: featuredIds[3] });
-  assert.ok(r.finalists.includes(featuredIds[3]));
+  assert.deepEqual(g.match, [e1.cast[0], e3.cast[2]]);
+  assert.deepEqual(g.split, [e2.cast[0], e2.cast[1], e4.cast[1], e4.cast[2]]);
+  assert.equal(g.unpicked.length, 12 - 6);
+  assert.deepEqual(defaultFinalists(s), [e1.cast[0], e3.cast[2], e2.cast[0], e2.cast[1]], 'matches first, up to four');
+  assert.equal(verdictFor(s, e1.cast[0]), groupLabels.match);
+  assert.equal(verdictFor(s, e2.cast[1]), groupLabels.split);
+  assert.equal(verdictFor(s, e2.cast[2]), groupLabels.unpicked);
+  assert.equal(resumeHref(s), '/blind-flight/results');
 });
 
-test('scenario 8. no keep/keep leaves no matches but keeps the maybes for discussion', () => {
-  const s = twoBallots(
-    () => 'keep',
-    () => 'maybe',
-  );
-  const g = groups(s);
-  if (g.kind !== 'two_person') return assert.fail();
-  assert.equal(g.match.length, 0);
-  assert.equal(g.potential.length, 12);
-  assert.equal(defaultFinalists(s).length, 4);
-});
-
-test('all passes gives an empty default final without crashing', () => {
-  const s = twoBallots(
-    () => 'pass',
-    () => 'pass',
-  );
-  assert.deepEqual(defaultFinalists(s), []);
-  assert.equal(finalistRows(s, []).length, 0);
-  assert.match(summaryText([]), /no finalists/);
-});
-
-test('9. quick play has one ballot and can never produce a two-person match', () => {
-  let s = run([{ type: 'setMode', mode: 'quick' }, { type: 'start' }, ...voteAll('keep'), { type: 'completeBallot' }]);
-  assert.equal(resultsReady(s), true);
-  assert.equal(phase(s), 'results');
+test('9. quick play has one shared choice per episode and never produces a match', () => {
+  let s = run([{ type: 'setMode', mode: 'quick' }, { type: 'startChoosing', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: one }]);
+  assert.equal(episodeStage(s, ep.id), 'reveal');
+  assert.equal(reducer(s, { type: 'passPhone', episodeId: ep.id }), s);
+  s = finish(ep, s);
+  assert.deepEqual(episodeVerdict(s, ep), { kind: 'chosen', id: one });
+  for (const e of featuredEpisodes.slice(1)) s = playQuick(s, e, e.cast[0]);
   const g = groups(s);
   assert.equal(g.kind, 'quick');
   assert.ok(!('match' in g));
-  assert.equal(reducer(s, { type: 'startSecondBallot' }), s);
-  s = reducer(s, { type: 'editBallot', player: 'traveller2' });
-  assert.equal(s.activePlayer, 'traveller1');
-  assert.equal(canSeeOtherVotes({ ...s, showOtherVotes: true }), false);
+  assert.equal(verdictFor(s, one), groupLabels.chosen);
 });
 
-test('7. Traveller 2 cannot see Traveller 1’s votes until both ballots are in', () => {
-  let s = run([...voteAll('keep'), { type: 'completeBallot' }]);
-  assert.equal(phase(s), 'handover');
-  s = reducer(s, { type: 'startSecondBallot' });
-  assert.equal(s.activePlayer, 'traveller2');
-  assert.equal(phase(s), 'ballot2');
-  assert.equal(canSeeOtherVotes({ ...s, showOtherVotes: true }), false, 'even if the switch is on');
+test('12. choose again clears the choices but keeps the contestants unmasked', () => {
+  let s = playAll(initialState, [ep, one, two]);
+  s = reducer(s, { type: 'pickAgain', episodeId: ep.id });
+  assert.equal(episodeStage(s, ep.id), 'choosing');
+  assert.equal(episodeProgress(s, ep.id).unmasked.length, 3);
+  s = run([{ type: 'pick', episodeId: ep.id, destinationId: two }, { type: 'passPhone', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: two }], s);
+  assert.equal(episodeStage(s, ep.id), 'done', 'no second reveal needed');
+  assert.deepEqual(episodeVerdict(s, ep), { kind: 'match', id: two });
+});
+
+test('bonus contestants arrive unmasked, and adding one reopens the show', () => {
+  let s = initialState;
+  for (const e of featuredEpisodes) s = playAll(s, [e, e.cast[0], e.cast[0]]);
+  assert.equal(resultsReady(s), true);
+  s = reducer(s, { type: 'addContender', destinationId: 'venice' });
   assert.equal(resultsReady(s), false);
-  assert.deepEqual(defaultFinalists(s), [], 'nothing derived from ballots leaks to compare');
-  assert.equal(finalistRows(s, ['wroclaw'])[0].verdict, '', 'no verdict in summaries');
-  assert.equal(nextUnvoted(s), featuredIds[0], 'Traveller 2 starts with a clean ballot');
-  assert.equal(s.players.traveller2.identityRevealed.wroclaw, undefined, 'and fresh mysteries');
-  s = run([...voteAll('pass'), { type: 'completeBallot' }], s);
-  assert.equal(canSeeOtherVotes(s), false, 'hidden until switched on');
-  assert.equal(canSeeOtherVotes({ ...s, showOtherVotes: true }), true);
+  const bonus = showEpisodes(s).at(-1)!;
+  assert.equal(bonus.id, 'bonus-1');
+  assert.equal(isUnmasked(s, bonus.id, 'venice'), true);
+  assert.equal(resumeHref(s), '/blind-flight/episode/bonus-1');
+  s = run([{ type: 'startChoosing', episodeId: bonus.id }, { type: 'pick', episodeId: bonus.id, destinationId: 'venice' }], s);
+  s = run([{ type: 'passPhone', episodeId: bonus.id }, { type: 'pick', episodeId: bonus.id, destinationId: 'venice' }], s);
+  assert.equal(episodeStage(s, bonus.id), 'done', 'nothing to unmask');
+  assert.equal(resultsReady(s), true);
+  s = reducer(s, { type: 'removeContender', destinationId: 'venice' });
+  assert.equal(s.episodes['bonus-1'], undefined);
+  assert.equal(resultsReady(s), true);
 });
 
-test('second ballot cannot start before the first is finished', () => {
-  const s = run([{ type: 'vote', destinationId: 'wroclaw', vote: 'keep' }]);
-  assert.equal(reducer(s, { type: 'startSecondBallot' }), s);
-});
-
-test('12. undo restores the previous vote, and re-voting after results edits only that ballot', () => {
-  let s = run([
-    { type: 'vote', destinationId: 'wroclaw', vote: 'keep' },
-    { type: 'vote', destinationId: 'wroclaw', vote: 'pass' },
-  ]);
-  s = reducer(s, { type: 'undo' });
-  assert.equal(s.players.traveller1.votes.wroclaw, 'keep');
-  s = reducer(s, { type: 'undo' });
-  assert.equal(s.players.traveller1.votes.wroclaw, undefined);
-  assert.equal(reducer(s, { type: 'undo' }), s, 'nothing left to undo');
-
-  const done = twoBallots(
-    () => 'keep',
-    () => 'keep',
-  );
-  const edited = run([{ type: 'editBallot', player: 'traveller1' }, { type: 'vote', destinationId: 'wroclaw', vote: 'pass' }], done);
-  assert.equal(edited.players.traveller1.votes.wroclaw, 'pass');
-  assert.equal(edited.players.traveller2.votes.wroclaw, 'keep');
-  assert.equal(resultsReady(edited), true);
-});
-
-test('changing mode clears ballots; reset keeps sound and motion preferences', () => {
-  const s = run([{ type: 'setSound', on: true }, ...voteAll('keep'), { type: 'setMode', mode: 'quick' }]);
-  assert.deepEqual(s.players.traveller1.votes, {});
+test('changing mode clears the choices; reset keeps sound and motion preferences', () => {
+  const s = run([{ type: 'setSound', on: true }, { type: 'nextQuestion', episodeId: ep.id }, { type: 'setMode', mode: 'quick' }]);
+  assert.deepEqual(s.episodes, {});
   const r = reducer(s, { type: 'reset' });
   assert.equal(r.soundEnabled, true);
   assert.equal(r.mode, 'two_person');
@@ -335,54 +366,266 @@ test('winner is a manual choice and can be changed', () => {
   assert.equal(s.winnerDestinationId, undefined);
 });
 
+// ───────────── Shuffled line-ups ─────────────
+
+test('a new show shuffles who shares a stage, the running order and the seats', () => {
+  const s = run([{ type: 'start', seed: 12345 }]);
+  assert.equal(s.seed, 12345);
+  const eps = showEpisodes(s);
+  assert.equal(eps.length, 4);
+  assert.deepEqual(eps.map((e) => e.id), ['round-1', 'round-2', 'round-3', 'round-4']);
+  assert.ok(eps.every((e) => e.cast.length === 3 && mixedEpisodes.some((m) => m.title === e.title)));
+  assert.deepEqual([...eps.flatMap((e) => e.cast)].sort(), [...featuredIds].sort(), 'everyone appears exactly once');
+  assert.deepEqual(showEpisodes(s), eps, 'the same seed gives the same show, so a reload keeps it');
+  // Different seeds give different line-ups.
+  const lineups = new Set([1, 2, 3, 4, 5].map((seed) => JSON.stringify(episodesFor(featuredIds, seed).map((e) => e.cast))));
+  assert.ok(lineups.size > 1);
+  assert.deepEqual(seededShuffle([1, 2, 3], 7), seededShuffle([1, 2, 3], 7));
+});
+
+test('the line-up only changes before anything has happened', () => {
+  let s = run([{ type: 'start', seed: 1 }]);
+  assert.equal(reducer(s, { type: 'start', seed: 2 }).seed, 1, 'Continue keeps the show you started');
+  s = reducer(s, { type: 'reshuffle', seed: 3 });
+  assert.equal(s.seed, 3);
+  s = reducer(s, { type: 'nextQuestion', episodeId: showEpisodes(s)[0].id });
+  assert.equal(reducer(s, { type: 'reshuffle', seed: 4 }), s);
+  assert.equal(reducer(s, { type: 'reset' }).seed, null);
+  // A show already under way from before shuffling existed stays themed.
+  const old = run([{ type: 'nextQuestion', episodeId: ep.id }]);
+  assert.equal(reducer(old, { type: 'start', seed: 9 }).seed, null);
+});
+
+test('a shuffled show saves and reloads, and plays through to the results', () => {
+  const store = new MemoryStorage();
+  let s = run([{ type: 'start', seed: 99 }]);
+  for (const e of showEpisodes(s)) s = playAll(s, [e, e.cast[1], e.cast[1]]);
+  assert.equal(resultsReady(s), true);
+  saveState(store, s);
+  const loaded = loadState(store)!;
+  assert.equal(loaded.seed, 99);
+  assert.equal(resultsReady(loaded), true);
+  assert.equal(sanitise({ ...JSON.parse(JSON.stringify(s)), seed: 'banana' })!.seed, null);
+});
+
+// ───────────── Scoring ─────────────
+
+test('city guesses: four options including the truth, and fewer questions score more', () => {
+  const opts = guessOptions(ep, two);
+  assert.equal(opts.length, 4);
+  assert.ok(opts.includes(two));
+  assert.ok(opts.every((id) => id === two || !ep.cast.includes(id)), 'decoys never come from the same episode');
+  assert.deepEqual(guessOptions(ep, two), opts, 'stable across renders');
+  assert.deepEqual([0, 1, 2, 3].map(cityPointsFor), [4, 3, 2, 1]);
+
+  const wrong = opts.find((id) => id !== two)!;
+  let s = run([
+    { type: 'nextQuestion', episodeId: ep.id },
+    { type: 'startChoosing', episodeId: ep.id },
+    { type: 'pick', episodeId: ep.id, destinationId: two, guessId: two },
+    { type: 'passPhone', episodeId: ep.id },
+    { type: 'pick', episodeId: ep.id, destinationId: two, guessId: wrong },
+  ]);
+  assert.deepEqual(episodeProgress(s, ep.id).cityPoints, { traveller1: 3, traveller2: 0 });
+  assert.equal(scores(s).traveller1.city, 3);
+  // A guess that isn't on the card is ignored.
+  s = run([{ type: 'startChoosing', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: one, guessId: 'atlantis' }]);
+  assert.equal(episodeProgress(s, ep.id).cityGuesses.traveller1, undefined);
+});
+
+test('changing your mind before the handover forfeits the banked guess; choosing again keeps it', () => {
+  let s = run([
+    { type: 'startChoosing', episodeId: ep.id },
+    { type: 'pick', episodeId: ep.id, destinationId: two, guessId: two },
+    { type: 'unpick', episodeId: ep.id },
+  ]);
+  assert.deepEqual(episodeProgress(s, ep.id).cityPoints, {});
+  s = finish(ep, run([{ type: 'pick', episodeId: ep.id, destinationId: two, guessId: two }, { type: 'passPhone', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: one }], s));
+  const before = scores(s).traveller1.city;
+  assert.equal(before, 4);
+  s = reducer(s, { type: 'pickAgain', episodeId: ep.id });
+  assert.equal(scores(s).traveller1.city, before);
+});
+
+test('the price duel is over your date, hides nothing it shouldn’t, and closest without going over wins', () => {
+  let s = unmaskAll(ep, play(ep, two, two));
+  assert.equal(episodeStage(s, ep.id), 'duel');
+  assert.equal(duelTarget(s, ep), two);
+  const actual = priceOf(s, two)!;
+  assert.equal(reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: 100 }), s, 'Traveller 1 guesses first');
+  assert.equal(reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: -5 }), s);
+  s = reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: actual - 10 });
+  assert.equal(episodeStage(s, ep.id), 'duel');
+  s = reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: actual + 1 });
+  assert.equal(episodeStage(s, ep.id), 'done');
+  assert.deepEqual(duelResult(s, ep)!.points, { traveller1: 3, traveller2: 0 }, 'within 5% earns the bonus; over earns nothing');
+  assert.equal(leader(s), 'traveller1');
+
+  const both = run(
+    [
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: actual * 2 },
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: actual * 3 },
+    ],
+    unmaskAll(ep, play(ep, two, two)),
+  );
+  assert.deepEqual(duelResult(both, ep)!.points, { traveller1: 0, traveller2: 0 });
+
+  const tie = run(
+    [
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: Math.floor(actual / 2) },
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: Math.floor(actual / 2) },
+    ],
+    unmaskAll(ep, play(ep, two, two)),
+  );
+  assert.deepEqual(duelResult(tie, ep)!.points, { traveller1: 2, traveller2: 2 });
+  assert.equal(leader(tie), undefined);
+});
+
+test('the duel target is fixed once guessing starts, and points never change a match', () => {
+  let s = unmaskAll(ep, play(ep, one, three));
+  const target = duelTarget(s, ep)!;
+  s = run(
+    [
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: 300 },
+      { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: 400 },
+    ],
+    s,
+  );
+  const scored = s;
+  s = run([{ type: 'pickAgain', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: two }, { type: 'passPhone', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: two }], s);
+  assert.equal(duelTarget(s, ep), target);
+  assert.deepEqual(scores(s), scores(scored));
+  assert.deepEqual(episodeVerdict(s, ep), { kind: 'match', id: two });
+});
+
+test('quick play duels score the badge points', () => {
+  let s = run([{ type: 'setMode', mode: 'quick' }, { type: 'startChoosing', episodeId: ep.id }, { type: 'pick', episodeId: ep.id, destinationId: one }]);
+  s = unmaskAll(ep, s);
+  s = reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller1', value: priceOf(s, duelTarget(s, ep)!)! });
+  assert.equal(episodeStage(s, ep.id), 'done');
+  assert.equal(scores(s).traveller1.price, 3);
+  assert.equal(reducer(s, { type: 'priceGuess', episodeId: ep.id, player: 'traveller2', value: 5 }), s);
+});
+
+// ───────────── Grand final ─────────────
+
+const decideShow = (from: GameState = initialState) => {
+  const [e1, e2, e3, e4] = featuredEpisodes;
+  return playAll(from, [e1, e1.cast[0], e1.cast[0]], [e2, e2.cast[0], e2.cast[1]], [e3, e3.cast[2], e3.cast[2]], [e4, e4.cast[1], e4.cast[1]]);
+};
+
+test('the final opens only once the show is decided, with a second chance each', () => {
+  assert.equal(finalStage(initialState), 'locked');
+  let s = decideShow();
+  assert.equal(finalStage(s), 'secondChance');
+  const [e1, e2, e3, e4] = featuredEpisodes;
+  assert.deepEqual(finalPool(s), [e1.cast[0], e3.cast[2], e4.cast[1], e2.cast[0], e2.cast[1]]);
+  const rescue = secondChanceOptions(s)[0];
+  assert.equal(reducer(s, { type: 'secondChance', player: 'traveller1', destinationId: e1.cast[0] }), s, 'only someone nobody chose');
+  s = reducer(s, { type: 'startFinal' });
+  assert.equal(finalStage(s), 'secondChance', 'not until everyone has decided');
+  s = run(
+    [
+      { type: 'secondChance', player: 'traveller1', destinationId: rescue },
+      { type: 'secondChance', player: 'traveller2', destinationId: null },
+      { type: 'startFinal' },
+    ],
+    s,
+  );
+  assert.equal(finalStage(s), 'choosing');
+  assert.ok(finalPool(s).includes(rescue));
+  assert.equal(finalPool(s).length, 6);
+});
+
+test('agreeing in the final crowns the winner; a split waits, and the leader can settle it', () => {
+  const ready = run(
+    [
+      { type: 'secondChance', player: 'traveller1', destinationId: null },
+      { type: 'secondChance', player: 'traveller2', destinationId: null },
+      { type: 'startFinal' },
+    ],
+    decideShow(),
+  );
+  const [a, b] = finalPool(ready);
+  let s = reducer(ready, { type: 'finalPick', destinationId: a });
+  assert.equal(finalStage(s), 'handover');
+  s = run([{ type: 'finalPassPhone' }, { type: 'finalPick', destinationId: a }], s);
+  assert.equal(finalStage(s), 'decided');
+  assert.deepEqual(finalVerdict(s), { kind: 'match', id: a });
+  assert.equal(s.winnerDestinationId, a);
+
+  s = run([{ type: 'finalPick', destinationId: a }, { type: 'finalPassPhone' }, { type: 'finalPick', destinationId: b }], ready);
+  assert.equal(finalVerdict(s)!.kind, 'split');
+  assert.equal(s.winnerDestinationId, undefined, 'a split final names no winner by itself');
+  assert.equal(reducer(s, { type: 'finalPick', destinationId: b }), s);
+  s = reducer(s, { type: 'finalAgain' });
+  assert.equal(finalStage(s), 'secondChance');
+});
+
+test('choosing again in an episode reopens the final', () => {
+  let s = run(
+    [
+      { type: 'secondChance', player: 'traveller1', destinationId: null },
+      { type: 'secondChance', player: 'traveller2', destinationId: null },
+      { type: 'startFinal' },
+    ],
+    decideShow(),
+  );
+  s = reducer(s, { type: 'pickAgain', episodeId: ep.id });
+  assert.equal(finalStage(s), 'locked');
+  assert.deepEqual(s.final.secondChance, {});
+});
+
 // ───────────── Persistence ─────────────
 
-test('scenario 5. reload mid-ballot resumes at the right contestant', () => {
+test('scenario 5. reload mid-show resumes at the right episode', () => {
   const store = new MemoryStorage();
-  const s = run([
-    { type: 'start' },
-    { type: 'vote', destinationId: featuredIds[0], vote: 'keep' },
-    { type: 'vote', destinationId: featuredIds[1], vote: 'maybe' },
-    { type: 'setActive', destinationId: featuredIds[2] },
-  ]);
+  const s = run([{ type: 'start' }, { type: 'nextQuestion', episodeId: featuredEpisodes[1].id }], playAll(initialState, [ep, one, two]));
   saveState(store, s);
   const loaded = loadState(store)!;
   assert.deepEqual(JSON.parse(JSON.stringify(loaded)), JSON.parse(JSON.stringify(s)));
-  assert.equal(resumeHref(loaded), `/blind-flight/show/${featuredIds[2]}`);
-  assert.equal(nextUnvoted(loaded), featuredIds[2]);
+  assert.equal(resumeHref(loaded), `/blind-flight/episode/${featuredEpisodes[1].id}`);
 });
 
-test('scenario 5b. reload during Traveller 2’s turn keeps their ballot separate', () => {
+test('scenario 5b. reload during Traveller 2’s turn keeps the phone with Traveller 2', () => {
   const store = new MemoryStorage();
-  const s = run([...voteAll('keep'), { type: 'completeBallot' }, { type: 'startSecondBallot' }]);
+  const s = run([
+    { type: 'startChoosing', episodeId: ep.id },
+    { type: 'pick', episodeId: ep.id, destinationId: one },
+    { type: 'passPhone', episodeId: ep.id },
+  ]);
   saveState(store, s);
   const loaded = loadState(store)!;
   assert.equal(loaded.activePlayer, 'traveller2');
-  assert.deepEqual(loaded.players.traveller2.votes, {});
-  assert.equal(resumeHref(loaded), `/blind-flight/show/${featuredIds[0]}`);
+  assert.equal(episodeStage(loaded, ep.id), 'choosing');
 });
 
 test('corrupt, old-schema or tampered saves are refused or cleaned', () => {
   const store = new MemoryStorage();
   store.setItem(STORAGE_KEY, '{not json');
   assert.equal(loadState(store), null);
-  store.setItem(STORAGE_KEY, JSON.stringify({ schemaVersion: 1 }));
+  store.setItem(STORAGE_KEY, JSON.stringify({ schemaVersion: 2 }));
   assert.equal(loadState(store), null);
   assert.equal(loadState(undefined), null);
 
   const cleaned = sanitise({
-    schemaVersion: 2,
+    schemaVersion: 3,
     mode: 'two_person',
     activePlayer: 'traveller2',
     destinationOrder: ['wroclaw', 'atlantis', 'riga', 'venice'],
-    players: { traveller1: { votes: { wroclaw: 'keep', atlantis: 'keep', prague: 'love' } } },
-    ballotComplete: { traveller1: false, traveller2: true },
+    episodes: {
+      [ep.id]: { questionsShown: 99, choosing: true, picks: { traveller1: 'atlantis', traveller2: one }, unmasked: [one, 'atlantis'] },
+      nonsense: 'yes',
+    },
     preferredItineraryByDestination: { kaunas: 'EU008', prague: 'EU008' },
     finalists: ['atlantis', 'prague'],
   })!;
-  assert.deepEqual(cleaned.players.traveller1.votes, { wroclaw: 'keep' });
-  assert.equal(cleaned.activePlayer, 'traveller1', 'Traveller 2 cannot be active before Traveller 1 finishes');
-  assert.equal(cleaned.ballotComplete.traveller2, false);
+  const p = cleaned.episodes[ep.id];
+  assert.equal(p.questionsShown, QUESTIONS);
+  assert.deepEqual(p.picks, { traveller2: one });
+  assert.deepEqual(p.unmasked, [one]);
+  assert.equal(cleaned.episodes.nonsense, undefined);
+  assert.equal(cleaned.activePlayer, 'traveller1', 'Traveller 2 cannot hold the phone before Traveller 1 has chosen');
   assert.ok(cleaned.destinationOrder.includes('venice'));
   assert.ok(!cleaned.destinationOrder.includes('atlantis'));
   assert.ok(!cleaned.destinationOrder.includes('riga'));

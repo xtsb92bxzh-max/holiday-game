@@ -4,8 +4,7 @@ import { formatDateRange } from '../../lib/dates';
 import { formatGBP } from '../../lib/pricing';
 import { awkwardBits, selectedVariant } from './cast';
 import { costBreakdown } from './cost';
-import { groups, resultsReady, type GameState } from './state';
-import { matchLabels, voteLabels } from './voteMatching';
+import { groupLabels, groups, resultsReady, type GameState } from './state';
 
 export type FinalistRow = {
   destinationId: string;
@@ -29,18 +28,14 @@ export type FinalistRow = {
   cautions: string;
 };
 
-/** The ballot verdict, but only once it is no longer private. */
+/** The show's verdict, but only once every episode is decided. */
 export function verdictFor(state: GameState, id: string): string {
   if (!resultsReady(state)) return '';
   const g = groups(state);
-  if (g.kind === 'quick') {
-    const v = state.players.traveller1.votes[id];
-    return v ? voteLabels[v].short : 'Not voted';
-  }
-  for (const key of ['match', 'potential', 'questions', 'mutual_rejection', 'incomplete'] as const) {
-    if (g[key].includes(id)) return matchLabels[key];
-  }
-  return '';
+  if (g.kind === 'quick') return g.chosen.includes(id) ? groupLabels.chosen : groupLabels.unpicked;
+  if (g.match.includes(id)) return groupLabels.match;
+  if (g.split.includes(id)) return groupLabels.split;
+  return groupLabels.unpicked;
 }
 
 /** No nicknames or votes by person: the summary is safe to forward. */

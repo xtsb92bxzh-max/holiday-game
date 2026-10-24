@@ -2,21 +2,31 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { Heart, RotateCcw } from 'lucide-react';
 import Confetti from '@/components/Confetti';
 import Photo from '@/components/Photo';
-import { destinationById, itineraryById } from '@/lib/catalogue';
+import { destinationById } from '@/lib/catalogue';
 import { formatGBP } from '@/lib/pricing';
 import { copy } from '../data/copy';
 import { selectedVariant } from '../lib/cast';
-import { costBreakdown, guessVerdict } from '../lib/cost';
-import { displayName, effectiveFinalists, groups, MAX_FINALISTS, players, resultsReady, type GameState, type PlayerId } from '../lib/state';
-import { matchLabels } from '../lib/voteMatching';
+import { costBreakdown } from '../lib/cost';
+import {
+  choosers,
+  displayName,
+  effectiveFinalists,
+  episodeProgress,
+  groupLabels,
+  groups,
+  MAX_FINALISTS,
+  resultsReady,
+  showEpisodes,
+  validPicks,
+  type GameState,
+} from '../lib/state';
 import { useShow } from './BlindFlightProvider';
 import { NotYet, Shell } from './Chrome';
-import { btn, VoteChip } from './ui';
+import { btn, PickChip, Scoreboard } from './ui';
 
 function priceLine(state: GameState, id: string): string {
   const it = selectedVariant(id, state.preferredItineraryByDestination[id]);
@@ -46,13 +56,18 @@ function ReconsiderButton({ id }: { id: string }) {
   );
 }
 
-function Votes({ id }: { id: string }) {
+/** Who chose this contestant in their episode. */
+function Pickers({ id }: { id: string }) {
   const { state } = useShow();
-  if (state.mode === 'quick') return <VoteChip vote={state.players.traveller1.votes[id]} />;
+  const e = showEpisodes(state).find((ep) => ep.cast.includes(id));
+  if (!e) return null;
+  const picks = validPicks(episodeProgress(state, e.id), e);
+  const who = choosers(state).filter((p) => picks[p] === id);
+  if (who.length === 0) return <span className="text-xs opacity-75">Nobody chose them in {e.title}</span>;
   return (
     <span className="flex flex-wrap gap-1">
-      {players.map((p) => (
-        <VoteChip key={p} vote={state.players[p].votes[id]} who={displayName(state, p)} />
+      {who.map((p) => (
+        <PickChip key={p} who={state.mode === 'quick' ? 'Your choice' : `${displayName(state, p)} chose`} />
       ))}
     </span>
   );
@@ -74,7 +89,7 @@ function MatchTile({ id, index }: { id: string; index: number }) {
         <p className="text-sm">
           {d.country} · {priceLine(state, id)}
         </p>
-        <Votes id={id} />
+        <Pickers id={id} />
         <div>
           <ReconsiderButton id={id} />
         </div>
@@ -94,7 +109,7 @@ function Row({ id }: { id: string }) {
         </Link>
         <span className="text-sm text-bf-cream/75"> · {priceLine(state, id)}</span>
         <div className="mt-1">
-          <Votes id={id} />
+          <Pickers id={id} />
         </div>
       </div>
       <ReconsiderButton id={id} />
@@ -120,51 +135,13 @@ function Group({ title, ids, line, open = true }: { title: string; ids: string[]
   );
 }
 
-function GuessScores() {
-  const { state } = useShow();
-  const who: PlayerId[] = state.mode === 'quick' ? ['traveller1'] : players;
-  const scores = who.map((p) => {
-    let points = 0;
-    let rounds = 0;
-    const me = state.players[p];
-    for (const [itId, g] of Object.entries(me.guessedPricesGBP)) {
-      if (g == null || !me.priceRevealed[itId]) continue;
-      const total = selectedVariantTotal(itId);
-      if (total == null) continue;
-      rounds++;
-      points += guessVerdict(g, total).points;
-    }
-    return { p, points, rounds };
-  });
-  if (scores.every((s) => s.rounds === 0)) return null;
-  return (
-    <section className="rounded-3xl border border-bf-cream/15 p-4 text-sm">
-      <h2 className="font-bold text-bf-custard">Price-guessing scoreboard</h2>
-      <ul className="mt-2 flex flex-wrap gap-4">
-        {scores.map((s) => (
-          <li key={s.p}>
-            {displayName(state, s.p)}: <strong>{s.points}</strong> points from {s.rounds} guess{s.rounds === 1 ? '' : 'es'}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-2 text-xs text-bf-cream/70">For entertainment only. Guessing well does not change any match.</p>
-    </section>
-  );
-}
-
-function selectedVariantTotal(itineraryId: string): number | null {
-  const it = itineraryById[itineraryId];
-  return it ? (costBreakdown(it)?.totalForTwo ?? null) : null;
-}
-
 export default function ResultsScreen() {
-  const { state, dispatch, reduceMotion, sfx } = useShow();
-  const router = useRouter();
+  const { state, reduceMotion, sfx } = useShow();
   const ready = resultsReady(state);
   const [burst, setBurst] = useState(0);
 
   const g = ready ? groups(state) : null;
-  const hasMatches = g ? (g.kind === 'two_person' ? g.match.length > 0 : g.keep.length > 0) : false;
+  const hasMatches = g ? (g.kind === 'two_person' ? g.match.length > 0 : g.chosen.length > 0) : false;
 
   useEffect(() => {
     if (ready && hasMatches) {
@@ -177,21 +154,12 @@ export default function ResultsScreen() {
   if (!ready || !g) {
     return (
       <Shell>
-        <NotYet title="The votes aren’t in yet">
-          <p>
-            {state.mode === 'quick'
-              ? 'Lock in your shared ballot to see the shortlist.'
-              : 'Both travellers need to lock in their ballots before anyone sees a match.'}
-          </p>
+        <NotYet title="The show isn’t over yet">
+          <p>Every episode needs a decision before the results come in.</p>
         </NotYet>
       </Shell>
     );
   }
-
-  const edit = (p: PlayerId) => {
-    dispatch({ type: 'editBallot', player: p });
-    router.push('/blind-flight/show');
-  };
 
   return (
     <Shell>
@@ -202,24 +170,23 @@ export default function ResultsScreen() {
             g.match.length > 0 ? (
               <>
                 <Heart aria-hidden className="mx-auto size-12 fill-bf-tomato text-bf-tomato" />
-                <h1 className="bf-logo mt-2 text-5xl sm:text-7xl">It’s a Match!</h1>
+                <h1 className="bf-logo mt-2 text-5xl sm:text-7xl">
+                  {g.match.length === 1 ? 'It’s a Match!' : `${g.match.length} Matches!`}
+                </h1>
                 <p className="mx-auto mt-4 max-w-xl font-serif text-lg italic text-bf-cream/90">{copy.match}</p>
               </>
             ) : (
               <>
                 <h1 className="bf-logo text-4xl sm:text-6xl">{copy.noMatches}</h1>
                 <p className="mx-auto mt-4 max-w-xl text-bf-cream/90">
-                  Nobody got two hearts tonight.{' '}
-                  {g.potential.length > 0
-                    ? `There ${g.potential.length === 1 ? 'is' : 'are'} ${g.potential.length} potential match${g.potential.length === 1 ? '' : 'es'} to talk about, and anything can be reconsidered.`
-                    : 'Look through the disagreements below and reconsider anything worth a second date.'}
+                  You never chose the same contestant. Every split decision is below, and anything can be reconsidered.
                 </p>
               </>
             )
           ) : (
             <>
               <h1 className="bf-logo text-4xl sm:text-6xl">Your shortlist</h1>
-              <p className="mx-auto mt-4 max-w-xl text-bf-cream/90">One shared ballot, so these are your joint keeps and maybes. No matchmaking required.</p>
+              <p className="mx-auto mt-4 max-w-xl text-bf-cream/90">One choice per episode, made together. No matchmaking required.</p>
             </>
           )}
         </section>
@@ -238,65 +205,47 @@ export default function ResultsScreen() {
                 </ul>
               </section>
             )}
-            <Group title={matchLabels.potential} ids={g.potential} line="A keep and a maybe, or two maybes. Promising." />
-            <Group title={matchLabels.questions} ids={g.questions} line={copy.disagreement} open={g.match.length === 0} />
-            <Group title={matchLabels.mutual_rejection} ids={g.mutual_rejection} line="Both of you passed. You can still reconsider." open={false} />
-            <Group title={matchLabels.incomplete} ids={g.incomplete} line="At least one of you didn’t vote. These count neither way." open={false} />
+            <Group title={groupLabels.split} ids={g.split} line={copy.disagreement} />
+            <Group title={groupLabels.unpicked} ids={g.unpicked} line="Nobody chose them. You can still reconsider." open={false} />
           </>
         ) : (
           <>
-            {g.keep.length > 0 && (
-              <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {g.keep.map((id, i) => (
-                  <MatchTile key={id} id={id} index={i} />
-                ))}
-              </ul>
-            )}
-            {g.keep.length === 0 && <p className="text-center text-bf-cream/85">Nothing kept yet. The maybes are below.</p>}
-            <Group title="Maybe" ids={g.maybe} />
-            <Group title="Passed" ids={g.pass} open={false} />
-            <Group title="Not voted" ids={g.unvoted} open={false} />
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {g.chosen.map((id, i) => (
+                <MatchTile key={id} id={id} index={i} />
+              ))}
+            </ul>
+            <Group title={groupLabels.unpicked} ids={g.unpicked} open={false} />
           </>
         )}
 
-        <GuessScores />
+        <section className="space-y-2 rounded-3xl border border-bf-cream/15 p-4 sm:p-5">
+          <h2 className="font-bold">Final scores</h2>
+          <Scoreboard detail />
+          {state.mode === 'two_person' && <p className="text-xs text-bf-cream/70">Points never change a match. In a split grand final, the leader gets the casting vote.</p>}
+        </section>
 
         <section className="flex flex-col items-center gap-4 text-center">
-          <p className="font-serif text-xl italic text-bf-custard">{copy.comparison}</p>
-          <Link href="/blind-flight/compare" className={btn.primary + ' text-xl'}>
+          <p className="font-serif text-xl italic text-bf-custard">The final: second chances, then one secret choice each.</p>
+          <Link href="/blind-flight/final" className={btn.primary + ' text-xl'}>
             To the grand final
+          </Link>
+          <Link href="/blind-flight/compare" className={btn.link}>
+            Or skip straight to the small print
           </Link>
         </section>
 
         <section className="space-y-3 rounded-3xl border border-bf-cream/15 p-4 sm:p-5">
           <h2 className="font-bold">Change your minds</h2>
+          <p className="text-sm text-bf-cream/80">Open any episode and use Choose again, or bring in more contestants for a bonus round.</p>
           <div className="flex flex-wrap gap-2">
-            {state.mode === 'quick' ? (
-              <button type="button" className={btn.ghost} onClick={() => edit('traveller1')}>
-                Edit our votes
-              </button>
-            ) : (
-              players.map((p) => (
-                <button key={p} type="button" className={btn.ghost} onClick={() => edit(p)}>
-                  Edit {displayName(state, p)}’s votes
-                </button>
-              ))
-            )}
+            <Link href="/blind-flight/show" className={btn.ghost}>
+              All episodes
+            </Link>
             <Link href="/blind-flight/contenders" className={btn.ghost}>
               Add more contenders
             </Link>
           </div>
-          {state.mode === 'two_person' && (
-            <label className="flex min-h-11 items-center gap-3 text-sm">
-              <input
-                type="checkbox"
-                className="size-5 accent-[#4acdc4]"
-                checked={state.showOtherVotes}
-                onChange={(e) => dispatch({ type: 'setShowOtherVotes', value: e.target.checked })}
-              />
-              Show the other traveller’s vote while editing
-            </label>
-          )}
         </section>
       </div>
     </Shell>
