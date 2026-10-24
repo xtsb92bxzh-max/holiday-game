@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import credits from '@/data/imageCredits.json';
 import assumptions from '@/data/assumptions.json';
 import type { ImageCredit } from '@/lib/types';
@@ -38,6 +39,9 @@ export default function Footer() {
             ))}
           </ul>
         </details>
+        <Link href="/" className="mr-6 inline-flex min-h-11 items-center underline decoration-dotted underline-offset-4 hover:text-cream">
+          Back to all games
+        </Link>
         <button
           className="min-h-11 underline decoration-dotted underline-offset-4 hover:text-cream"
           onClick={() => {

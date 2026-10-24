@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { motion } from 'motion/react';
 import { useGame } from './GameContext';
 import { btn, HostLine } from './ui';
@@ -15,6 +16,13 @@ export default function TitleScreen() {
       <div aria-hidden className="spotlight spotlight-right" />
       <div aria-hidden className="sparkle pointer-events-none absolute inset-0 opacity-60" />
       <div aria-hidden className="footlights pointer-events-none absolute inset-x-0 bottom-0 h-24" />
+
+      <Link
+        href="/"
+        className="-mt-6 mb-4 self-start inline-flex min-h-11 sm:absolute sm:left-4 sm:top-4 sm:m-0 items-center text-sm text-cream/70 underline decoration-dotted underline-offset-4 hover:text-cream"
+      >
+        ← All games
+      </Link>
 
       <motion.p
         initial={{ opacity: 0, y: -10 }}

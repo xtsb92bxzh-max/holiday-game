@@ -6,6 +6,12 @@ The show has four rounds: a prize conveyor belt, guess the price, Keep / Maybe /
 
 All prices are indicative totals for two, observed on 23 October 2026. They are not live fares. Every price and link needs rechecking before you book.
 
+## Games on this site
+
+The home page (`/`) lists every game. The January Getaway lives at `/january-getaway`.
+
+To add a game, give it its own folder under `src/app/` and add an entry to `src/lib/games.ts`. Set `comingSoon: true` to show it on the home page before it is playable.
+
 ## Running it locally
 
 You will need Node 20 or later.
