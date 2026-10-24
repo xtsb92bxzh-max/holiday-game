@@ -35,6 +35,8 @@ import {
   type Action,
   type GameState,
   type Vote,
+  ladderOrder,
+  revealOrder,
 } from '../src/getaway-show/lib/state';
 import { comparisonText, shortlistText } from '../src/getaway-show/lib/summary';
 
@@ -351,4 +353,38 @@ test('14. summaries use real links, flag unknown totals and never claim a bookin
   assert.ok(text.includes('£298.18 for two'));
   assert.ok(text.includes(itineraryById.EU001.roomSourceUrl!));
   assert.ok(!/\bbooked\b|\bconfirmed booking\b|\blive fare\b(?!s)/i.test(text.replace('Not live fares', '')));
+});
+
+// ───────────── Shuffled running order ─────────────
+
+test('a new show shuffles the reveal order, the price pairings and the board draws', () => {
+  assert.deepEqual(revealOrder(initialState), featuredIds, 'a show without a seed keeps the written order');
+  const s = run([{ type: 'start', seed: 2024 }]);
+  assert.equal(s.seed, 2024);
+  assert.deepEqual([...revealOrder(s)].sort(), [...featuredIds].sort(), 'everyone appears once');
+  assert.deepEqual([...ladderOrder(s)].sort(), [...ladderIds].sort());
+  assert.deepEqual(ballotIds(s).slice(0, 12), revealOrder(s), 'the ballot follows tonight’s order');
+  const orders = new Set([1, 2, 3, 4, 5].map((seed) => revealOrder(run([{ type: 'start', seed }])).join()));
+  assert.ok(orders.size > 1);
+  const ladders = new Set([1, 2, 3, 4, 5].map((seed) => ladderOrder(run([{ type: 'start', seed }])).join()));
+  assert.ok(ladders.size > 1, 'different shows meet different pairs in the price round');
+  for (let i = 0; i < duelCount; i++) {
+    const pair = duelPair(s, i)!;
+    assert.equal(pair.leftId, ladderOrder(s)[i]);
+    assert.equal(pair.rightId, ladderOrder(s)[i + 1]);
+  }
+  const draws = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((seed) => drawFromSegment('food', featuredIds, seed).join()));
+  assert.ok(draws.size > 1, 'the board draws vary between shows');
+  for (const id of drawFromSegment('food', featuredIds, 3)) assert.ok(segmentPool('food').includes(id));
+});
+
+test('the running order survives a reload and is fixed once the show is under way', () => {
+  const store = new MemoryStorage();
+  let s = run([{ type: 'start', seed: 7 }]);
+  saveState(store, s);
+  assert.deepEqual(revealOrder(loadState(store)!), revealOrder(s));
+  assert.equal(reducer(s, { type: 'start', seed: 8 }).seed, 7, 'Resume keeps tonight’s order');
+  s = reducer(initialState, { type: 'revealIdentity', destinationId: featuredIds[0] });
+  assert.equal(reducer(s, { type: 'start', seed: 8 }).seed, null, 'a show from before shuffling keeps its order');
+  assert.equal(sanitise({ ...JSON.parse(JSON.stringify(s)), seed: -3 })!.seed, null);
 });

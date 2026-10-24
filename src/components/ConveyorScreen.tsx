@@ -6,11 +6,14 @@ import { ChevronLeft, ChevronRight, Pause, Play, Sparkles } from 'lucide-react';
 import ConveyorBelt, { type ConveyorHandle } from './ConveyorBelt';
 import { useGame } from './GameContext';
 import { btn, HostLine } from './ui';
-import { mainCast, mysteryCast, selectedItinerary, hasPrice } from '@/lib/catalogue';
+import { selectedItinerary, hasPrice } from '@/lib/catalogue';
+import { mainLineup, mysteryLineup } from '@/lib/gameState';
 import { formatDateRange } from '@/lib/dates';
 
 export default function ConveyorScreen() {
   const { state, dispatch, reduceMotion, sfx } = useGame();
+  const mainCast = mainLineup(state);
+  const mysteryCast = mysteryLineup(state);
   const [running, setRunning] = useState(!reduceMotion);
   const [active, setActive] = useState(Math.min(state.playIndex, mainCast.length - 1));
   const handle = useRef<ConveyorHandle | null>(null);

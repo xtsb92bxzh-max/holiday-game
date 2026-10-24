@@ -51,3 +51,28 @@ test('decisions can be changed and cleared; un-keeping the winner clears it', ()
   s = reducer(s, { type: 'decide', destinationId: 'prague', decision: null });
   assert.equal(s.decisions.prague, undefined);
 });
+
+// ───────────── Shuffled running order ─────────────
+
+test('a new January Getaway deals a shuffled, saved running order', async () => {
+  const { mainCast, mysteryCast } = await import('../src/lib/catalogue');
+  const { mainLineup, mysteryLineup, loadState, saveState } = await import('../src/lib/gameState');
+  assert.deepEqual(mainLineup(initialState), mainCast, 'old games keep the workbook order');
+  const s = reducer(initialState, { type: 'shuffle', seed: 42 });
+  const lineup = mainLineup(s);
+  assert.deepEqual([...lineup].map((d) => d.id).sort(), mainCast.map((d) => d.id).sort(), 'every prize appears once');
+  assert.deepEqual(mysteryLineup(s).map((d) => d.id).sort(), mysteryCast.map((d) => d.id).sort());
+  const orders = new Set([1, 2, 3, 4, 5].map((seed) => mainLineup(reducer(initialState, { type: 'shuffle', seed })).map((d) => d.id).join()));
+  assert.ok(orders.size > 1, 'different games get different orders');
+
+  const store = new Map<string, string>();
+  saveState({ setItem: (k, v) => store.set(k, v) }, s);
+  const loaded = loadState({ getItem: (k) => store.get(k) ?? null })!;
+  assert.deepEqual(mainLineup(loaded), lineup, 'a reload keeps the same order');
+});
+
+test('the running order is fixed once anything has been judged', () => {
+  const s = reducer(reducer(initialState, { type: 'shuffle', seed: 1 }), { type: 'decide', destinationId: 'prague', decision: 'keep' });
+  assert.equal(reducer(s, { type: 'shuffle', seed: 2 }), s);
+  assert.equal(reducer(s, { type: 'reset' }).seed, null, 'a reset deals again on the next start');
+});

@@ -1,6 +1,7 @@
 import assumptions from '../../data/assumptions.json';
 import { destinationById, destinations, hasPrice, itineraryById } from '../../lib/catalogue';
 import { isEligibleTrip, nightsBetween } from '../../lib/dates';
+import { seededShuffle } from '../../lib/shuffle';
 import type { Destination, Itinerary } from '../../lib/types';
 import { contestants, hasClues } from '../data/contestants';
 import { boardSegments, boardTags, broadcastGroups, CHEAP_CEILING_GBP, priceLadder, type BoardSegmentId } from '../data/show';
@@ -142,10 +143,13 @@ export function segmentPool(segment: BoardSegmentId): string[] {
   return benchIds.filter((id) => segmentsOf(id).includes(segment));
 }
 
-/** One or two destinations from a segment that have not been shown yet. */
-export function drawFromSegment(segment: BoardSegmentId, alreadyShown: string[]): string[] {
+/**
+ * One or two destinations from a segment that have not been shown yet.
+ * With a seed, the draw is shuffled; without one, the cheapest come first.
+ */
+export function drawFromSegment(segment: BoardSegmentId, alreadyShown: string[], seed?: number | null): string[] {
   const seen = new Set(alreadyShown);
-  return segmentPool(segment)
-    .filter((id) => !seen.has(id))
-    .slice(0, 2);
+  const pool = segmentPool(segment).filter((id) => !seen.has(id));
+  const offset = boardSegments.findIndex((s) => s.id === segment) + 2;
+  return (seed == null ? pool : seededShuffle(pool, seed + offset)).slice(0, 2);
 }

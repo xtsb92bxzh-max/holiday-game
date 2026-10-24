@@ -47,11 +47,14 @@ const shots = process.env.SCREENSHOTS;
   await page.waitForURL('**/catch-a-flight');
   await page.getByRole('button', { name: 'Show me a bit more' }).click();
   const before = await page.locator('main').innerText();
-  assert.ok(!before.includes('Wrocław'), 'city name visible before reveal');
-  assert.equal(await page.locator('main img[alt*="Wrocław"]').count(), 0, 'alt text gives the city away');
+  const alts = await page.locator('main img').evaluateAll((imgs) => imgs.map((i) => i.alt).join(' '));
   await check('03-round1-clues');
   await page.getByRole('button', { name: 'Reveal the city' }).click();
-  await page.getByRole('heading', { name: 'Wrocław' }).waitFor();
+  // The running order is shuffled, so read the city from the reveal and check it was hidden before.
+  const city = (await page.locator('#clue-heading').innerText()).trim();
+  assert.ok(city, 'the reveal names a city');
+  assert.ok(!before.includes(city), `${city} visible before reveal`);
+  assert.ok(!alts.includes(city), `alt text gives ${city} away`);
   await page.getByRole('button', { name: 'We got it' }).click();
   await page.getByRole('button', { name: 'Add to my possibles' }).click();
   await check('04-round1-revealed');

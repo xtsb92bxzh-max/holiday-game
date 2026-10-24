@@ -3,9 +3,9 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, ArrowRight, Snowflake, Sparkle, ThermometerSun, TriangleAlert } from 'lucide-react';
 import { useGame } from './GameContext';
-import { mainCast, mysteryCast, selectedItinerary, routeLabel } from '@/lib/catalogue';
+import { selectedItinerary, routeLabel } from '@/lib/catalogue';
 import { formatDateRange } from '@/lib/dates';
-import { currentGuess } from '@/lib/gameState';
+import { currentGuess, mainLineup, mysteryLineup } from '@/lib/gameState';
 import Photo from './Photo';
 import PriceGame from './PriceGame';
 import VotingControls from './VotingControls';
@@ -15,6 +15,8 @@ import { btn, HostLine } from './ui';
 
 export default function PlayScreen({ mode }: { mode: 'main' | 'mystery' }) {
   const { state, dispatch, sfx } = useGame();
+  const mainCast = mainLineup(state);
+  const mysteryCast = mysteryLineup(state);
   const cast = mode === 'main' ? mainCast : mysteryCast;
   const index = Math.min(mode === 'main' ? state.playIndex : state.mysteryIndex, cast.length - 1);
   const dest = cast[index];
