@@ -1,14 +1,15 @@
-# The Great January Getaway
+# Holiday Games
 
-A game-show front end for choosing a January 2027 European break for two. The data comes from a researched spreadsheet. The site presents it as a tongue-in-cheek Saturday-night TV show. You finish with a ranked shortlist that you can export.
+Two game-show front ends for choosing a January 2027 European break for two. Both read the same researched spreadsheet, so they always show the same prices.
 
-The show has four rounds: a prize conveyor belt, guess the price, Keep / Maybe / Bin, and a Grand Final comparison. Sensible mode is a plain searchable list for when you come back to book.
+- The Great January Getaway (`/january-getaway`) is a tongue-in-cheek Saturday-night prize show: conveyor belt, guess the price, Keep / Maybe / Bin and a Grand Final.
+- Blind Flight (`/blind-flight`) is a retro dating-show parody. Destinations flirt, drop clues and reveal themselves, then two travellers vote in private on one phone and the matches are revealed together.
 
 All prices are indicative totals for two, observed on 23 October 2026. They are not live fares. Every price and link needs rechecking before you book.
 
 ## Games on this site
 
-The home page (`/`) lists every game. The January Getaway lives at `/january-getaway`.
+The home page (`/`) lists every game. The January Getaway lives at `/january-getaway` and Blind Flight at `/blind-flight`.
 
 To add a game, give it its own folder under `src/app/` and add an entry to `src/lib/games.ts`. Set `comingSoon: true` to show it on the home page before it is playable.
 
@@ -71,6 +72,69 @@ To add a destination, add a mapping in `DESTINATION_IDS` in `scripts/import-holi
 
 Photos come from Wikimedia Commons under CC BY, CC BY-SA or CC0 licences. Credits are shown on each photo and listed in the site footer. If a photo is missing or fails to load, the card shows a designed poster-style fallback instead.
 
+## Blind Flight
+
+The brief is in `docs/BLIND_FLIGHT_BUILD_BRIEF.md`.
+
+### How a game runs
+
+1. On the title screen you choose a two-person game (the default) or quick play, with optional nicknames.
+2. The show has four episodes of three contestants. Each contestant gives a one-liner and three clues, then reveals its city, photo, reasons to go, "the awkward bit" and trip facts.
+3. Priced trips have an optional price round. Unpriced trips say "Price pending — flights not yet priced" and show the room quote and timetable as separate facts.
+4. You vote Keep, Maybe or Pass with buttons. Swiping right or left is a shortcut. Undo is always available.
+5. In a two-person game, Traveller 1 locks in their ballot and passes the phone. Traveller 2 votes on the same contestants without seeing Traveller 1's votes.
+6. Results group destinations into It's a Match! (Keep + Keep), Potential Match (Keep + Maybe, Maybe + Maybe), One of Us Has Questions (Keep or Maybe against Pass) and Mutual Rejection (Pass + Pass). A missing vote is never counted as a Pass. Anything can be reconsidered.
+7. The grand final compares two to four finalists side by side. You pick the winner yourselves. You can copy, share or download a CSV summary, which leaves out nicknames.
+
+Quick play has one shared ballot and produces a shortlist, never a "match".
+
+"I refuse to participate in this nonsense" opens Sensible mode at `/blind-flight/holidays`. It lists every itinerary in the travel window with filters for budget, nights, airport, trip type, price status and route.
+
+### Routes
+
+| Route | Screen |
+|---|---|
+| `/blind-flight` | Title screen and mode choice |
+| `/blind-flight/show` | Episode stage with three podiums per episode |
+| `/blind-flight/show/[id]` | One contestant: clues, reveal, price round, vote |
+| `/blind-flight/handover` | Pass the phone |
+| `/blind-flight/results` | Match reveal |
+| `/blind-flight/compare` | Grand final comparison |
+| `/blind-flight/contenders` | More eligible contenders to add as a bonus round |
+| `/blind-flight/holidays` | Sensible mode |
+| `/blind-flight/about` | About these prices |
+
+Every route works on reload, with Back, and when opened directly. Pages that depend on both ballots say so until both are in.
+
+### Where things live
+
+| File | What it holds |
+|---|---|
+| `src/blind-flight/data/profiles.ts` | Dating-show copy for each featured contestant: one-liner, three clues, pitch, awkward truth |
+| `src/blind-flight/data/episodes.ts` | Episode titles, presenter lines and casts |
+| `src/blind-flight/data/copy.ts` | Presenter copy bank and vote reactions |
+| `src/blind-flight/lib/cast.ts` | Which trips can appear, variants per destination, episodes and cautions |
+| `src/blind-flight/lib/cost.ts` | Price breakdown and the joke guess badges |
+| `src/blind-flight/lib/voteMatching.ts` | The matching rules |
+| `src/blind-flight/lib/state.ts` | Game state, actions and selectors |
+| `src/blind-flight/lib/persistence.ts` | Saving to `localStorage`, with a schema version and clean-up on load |
+
+Facts are not duplicated. Names, countries, photos, highlights, typical weather and cautions come from `src/data/destinations.ts`. Prices, dates, flights, hotels and links come from `src/data/itineraries.json`. Update a price once with `npm run import-data` and both games pick it up.
+
+### Changing the cast
+
+- To change who is featured, edit the `cast` arrays in `episodes.ts`. Each destination needs a profile in `profiles.ts` with three clues. A test checks this.
+- A destination drops out of the show automatically if it has no trip in the travel window. An empty episode is skipped.
+- Every other destination with an eligible trip appears under More eligible contenders. Adding one creates a bonus round. These arrive already revealed, with no clues.
+- Trips from the `Connections to verify` sheet have no established flights. They appear in Sensible mode only.
+- A destination with several date or airport options is one contestant with a "Pick your dates" switch. Switching resets the price round.
+
+### Saved progress
+
+State is saved under the `blind-flight:v2` key with `schemaVersion: 2`. On load, anything unreadable, from another schema version, or pointing at a destination that no longer exists is dropped. Use Reset the whole show in the footer, or Start again on the title screen.
+
+Two-person voting works on one phone only. Nothing syncs between devices.
+
 ## Deploying to Vercel
 
 The app is a standard Next.js 15 App Router project. It needs no environment variables, database or API keys.
@@ -96,4 +160,5 @@ Guesses, decisions, the chosen dates, contestant names and settings are saved in
 - Several priced fares were indexed or detailed quotes, not reconfirmed live availability. Flight times for most priced options were not recorded.
 - Weather lines describe typical January climate from general knowledge. They are not forecasts.
 - Points in the price round are entertainment only and do not rank the holidays.
-- Independent voting on two phones, live fares and shared links are not built. They are listed as phase 2 in `docs/BUILD_BRIEF.md`.
+- Independent voting on two phones, live fares and shared links are not built in either game. They are listed as phase 2 in both briefs.
+- Blind Flight's clues and pitches are editorial copy checked against general knowledge, not against the workbook.

@@ -15,10 +15,9 @@ export const games: GameListing[] = [
     image: '/images/destinations/prague.jpg',
   },
   {
-    slug: 'coming-soon',
-    title: 'Game Two',
-    tagline: 'Currently in rehearsal. Please do not feed the contestants.',
-    image: '/images/destinations/tenerife.jpg',
-    comingSoon: true,
+    slug: 'blind-flight',
+    title: 'Blind Flight',
+    tagline: 'Love at first flight. Regret at baggage claim.',
+    image: '/images/destinations/tallinn.jpg',
   },
 ];
