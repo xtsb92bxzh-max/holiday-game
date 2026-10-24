@@ -5,8 +5,8 @@ import '@fontsource-variable/dm-sans';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'The Great January Getaway',
-  description: 'Two travellers. Twenty holidays. One deeply overworked spreadsheet.',
+  title: 'Holiday Games',
+  description: 'Pick tonight’s show.',
 };
 
 export const viewport: Viewport = {
