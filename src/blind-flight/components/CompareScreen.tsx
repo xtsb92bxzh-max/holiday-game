@@ -14,7 +14,7 @@ import { finalistRows, summaryCsv, summaryText, verdictFor } from '../lib/summar
 import { useShow } from './BlindFlightProvider';
 import { Shell } from './Chrome';
 import { AwkwardBit, TripFacts } from './ContestantScreen';
-import { Breakdown, PendingFacts } from './PriceRound';
+import { Breakdown, PendingFacts } from './Price';
 import { btn, Provenance, TripLinks } from './ui';
 import { formatDateRange } from '@/lib/dates';
 
@@ -195,7 +195,7 @@ export default function CompareScreen() {
           </h2>
           {!ready && (
             <p className="text-sm text-bf-cream/80">
-              The ballots aren’t finished, so nothing is pre-selected and no votes are shown here. Pick any contestants to compare.
+              The show isn’t finished, so nothing is pre-selected and no choices are shown here. Pick any contestants to compare.
             </p>
           )}
           <div className="flex flex-wrap gap-2">
@@ -266,7 +266,7 @@ export default function CompareScreen() {
             type="button"
             className={btn.link}
             onClick={() => {
-              if (window.confirm('Clear both ballots, guesses and finalists and start the show again?')) dispatch({ type: 'reset' });
+              if (window.confirm('Clear every choice and finalist and start the show again?')) dispatch({ type: 'reset' });
             }}
           >
             Restart

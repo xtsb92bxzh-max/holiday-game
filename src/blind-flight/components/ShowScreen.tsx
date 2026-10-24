@@ -1,31 +1,24 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { ChevronRight, Plus } from 'lucide-react';
 import { destinationById } from '@/lib/catalogue';
 import Photo from '@/components/Photo';
-import { contenderIds, episodesFor, seatWords, type ShowEpisode } from '../lib/cast';
-import { displayName, nextUnvoted, phase, progress, resultsReady, resumeHref } from '../lib/state';
+import { contenderIds, seatWords, type ShowEpisode } from '../lib/cast';
+import { currentEpisode, displayName, episodeStage, episodeVerdict, isUnmasked, players, progress, resultsReady, resumeHref, showEpisodes } from '../lib/state';
 import { useShow } from './BlindFlightProvider';
 import { Shell } from './Chrome';
-import { btn, LowerThird, VoteChip } from './ui';
+import { btn, LowerThird } from './ui';
 
-function Podium({ id, seat }: { id: string; seat: number }) {
+function Podium({ episodeId, id, seat }: { episodeId: string; id: string; seat: number }) {
   const { state } = useShow();
-  const me = state.players[state.activePlayer];
   const d = destinationById[id];
-  const revealed = Boolean(me.identityRevealed[id]);
-  const vote = me.votes[id];
+  const shown = isUnmasked(state, episodeId, id);
   return (
-    <Link
-      href={`/blind-flight/show/${id}`}
-      className="group flex min-w-0 flex-col items-center text-center focus-visible:outline-offset-4"
-      aria-label={`Contestant number ${seatWords[seat - 1].toLowerCase()}${revealed ? `: ${d.name}` : ', identity hidden'}${vote ? `. Your vote: ${vote}` : ''}`}
-    >
-      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-t-[2.5rem] rounded-b-lg border-2 border-bf-custard/60 shadow-xl transition group-hover:-translate-y-1 group-hover:border-bf-custard">
-        {revealed ? (
-          <Photo src={d.imagePath} name={d.name} country={d.country} className="absolute inset-0" sizes="(max-width: 640px) 33vw, 260px" />
+    <div className="flex min-w-0 flex-col items-center text-center">
+      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-t-[2.5rem] rounded-b-lg border-2 border-bf-custard/60 shadow-xl">
+        {shown ? (
+          <Photo src={d.imagePath} name={d.name} country={d.country} className="size-full" sizes="(max-width: 640px) 33vw, 260px" />
         ) : (
           <div className="bf-silhouette absolute inset-0 grid place-items-center">
             <span aria-hidden className="bf-display text-6xl text-bf-custard/90 sm:text-8xl">
@@ -38,13 +31,32 @@ function Podium({ id, seat }: { id: string; seat: number }) {
         <p className="text-[10px] font-bold uppercase tracking-widest text-bf-cream/90 sm:text-xs">Contestant No.</p>
         <p className="bf-display text-xl leading-none text-bf-custard sm:text-3xl">{seatWords[seat - 1]}</p>
       </div>
-      <p className="mt-2 min-h-5 truncate text-sm font-semibold text-bf-cream">{revealed ? d.name : 'Identity hidden'}</p>
-      {vote ? <VoteChip vote={vote} className="mt-1" /> : <span className="mt-1 text-xs text-bf-cream/60">No vote yet</span>}
-    </Link>
+      <p className="mt-2 min-h-5 w-full truncate text-sm font-semibold text-bf-cream">{shown ? d.name : 'Identity hidden'}</p>
+    </div>
   );
 }
 
-function EpisodeStage({ episode }: { episode: ShowEpisode }) {
+function Status({ episode }: { episode: ShowEpisode }) {
+  const { state } = useShow();
+  const stage = episodeStage(state, episode.id);
+  const v = episodeVerdict(state, episode);
+  if (stage === 'done' && v) {
+    const name = (id: string) => destinationById[id].name;
+    const text =
+      v.kind === 'match'
+        ? `It’s a match: ${name(v.id)}`
+        : v.kind === 'split'
+          ? `Split decision: ${players.map((p) => `${displayName(state, p)} chose ${name(v.ids[p])}`).join('; ')}`
+          : `You chose ${name(v.id)}`;
+    return <p className="font-semibold text-bf-seafoam">{text}</p>;
+  }
+  const label = { watching: 'Not started', choosing: 'Choosing now', handover: 'Choosing now', reveal: 'Mid-reveal', done: '' }[stage];
+  return <p className="text-sm text-bf-cream/70">{label}</p>;
+}
+
+function EpisodeStage({ episode, current }: { episode: ShowEpisode; current: boolean }) {
+  const { state } = useShow();
+  const stage = episodeStage(state, episode.id);
   return (
     <section aria-labelledby={`ep-${episode.id}`} className="relative">
       <div className="mb-4 space-y-2">
@@ -56,94 +68,73 @@ function EpisodeStage({ episode }: { episode: ShowEpisode }) {
         </h2>
         <LowerThird label="Host">{episode.presenterLine}</LowerThird>
       </div>
-      <div className="relative rounded-3xl border border-bf-cream/10 bg-black/20 px-3 pb-5 pt-6 sm:px-8">
+      <Link
+        href={`/blind-flight/episode/${episode.id}`}
+        className={`group relative block rounded-3xl border bg-black/20 px-3 pb-5 pt-6 transition hover:border-bf-custard/60 sm:px-8 ${
+          current ? 'border-bf-custard' : 'border-bf-cream/10'
+        }`}
+      >
         <div aria-hidden className="bf-floor pointer-events-none absolute inset-x-0 bottom-0 h-1/3 rounded-b-3xl" />
         <div className="relative mx-auto grid max-w-3xl grid-cols-3 gap-3 sm:gap-8">
           {episode.cast.map((id, i) => (
-            <Podium key={id} id={id} seat={i + 1} />
+            <Podium key={id} episodeId={episode.id} id={id} seat={i + 1} />
           ))}
         </div>
-      </div>
+        <div className="relative mt-4 flex items-center justify-between gap-3">
+          <Status episode={episode} />
+          <span className="inline-flex shrink-0 items-center gap-1 text-sm font-bold text-bf-custard">
+            {stage === 'done' ? 'Watch again' : current ? 'Play' : 'Open'} <ChevronRight aria-hidden className="size-4" />
+          </span>
+        </div>
+      </Link>
     </section>
   );
 }
 
 export default function ShowScreen() {
-  const { state, dispatch } = useShow();
-  const router = useRouter();
-  const ph = phase(state);
-  const eps = episodesFor(state.destinationOrder);
-  const p = progress(state);
-  const who = displayName(state, state.activePlayer);
-  const complete = state.ballotComplete[state.activePlayer];
-  const unvoted = p.total - p.voted;
-  const next = nextUnvoted(state);
+  const { state } = useShow();
+  const eps = progress(state);
+  const current = currentEpisode(state);
+  const ready = resultsReady(state);
   const addable = contenderIds.filter((id) => !state.destinationOrder.includes(id)).length;
-
-  const finish = () => {
-    if (unvoted > 0 && !window.confirm(`${unvoted} contestant${unvoted === 1 ? ' has' : 's have'} no vote. They won’t count either way. Finish anyway?`)) return;
-    dispatch({ type: 'completeBallot' });
-    if (state.mode === 'two_person' && state.activePlayer === 'traveller1' && !state.ballotComplete.traveller1) router.push('/blind-flight/handover');
-    else router.push('/blind-flight/results');
-  };
+  const episodes = showEpisodes(state);
 
   return (
     <Shell>
       <div className="mx-auto max-w-5xl space-y-10 px-4 py-8 sm:py-12">
         <section className="space-y-4">
-          {ph === 'handover' ? (
-            <div className="rounded-2xl border-2 border-bf-custard bg-bf-custard/10 p-4">
-              <p className="font-semibold">Traveller 1 has finished. Time to pass the phone.</p>
-              <Link href="/blind-flight/handover" className={btn.primary + ' mt-3'}>
-                Go to the handover
-              </Link>
-            </div>
-          ) : (
-            <>
-              <p className="text-xs font-bold uppercase tracking-[0.25em] text-bf-seafoam">
-                {ph === 'results' ? `Editing: ${who}` : state.mode === 'quick' ? 'Quick play' : `Now voting: ${who}`}
-              </p>
-              <h1 className="bf-logo text-4xl sm:text-5xl">Meet the contestants</h1>
-              {p.voted === 0 && (
-                <p className="max-w-2xl text-bf-cream/85">
-                  Each destination flirts first and reveals itself later. Peek at the price, then vote Keep, Maybe or Pass.
-                </p>
-              )}
-              <div className="max-w-md">
-                <div className="flex justify-between text-sm text-bf-cream/80">
-                  <span>
-                    {p.voted} of {p.total} judged — {who}
-                  </span>
-                  {unvoted > 0 && <span>{unvoted} to go</span>}
-                </div>
-                <div className="mt-1 h-3 overflow-hidden rounded-full bg-bf-cream/10" role="progressbar" aria-valuemin={0} aria-valuemax={p.total} aria-valuenow={p.voted} aria-label="Ballot progress">
-                  <div className="h-full rounded-full bg-bf-seafoam transition-all" style={{ width: `${(p.voted / Math.max(1, p.total)) * 100}%` }} />
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {next ? (
-                  <Link href={ph === 'results' ? `/blind-flight/show/${next}` : resumeHref(state)} className={btn.primary}>
-                    {p.voted === 0 ? 'Meet contestant number one' : 'Next contestant'} <ChevronRight aria-hidden className="size-5" />
-                  </Link>
-                ) : null}
-                {ph === 'results' ? (
-                  <Link href="/blind-flight/results" className={btn.gold}>
-                    Back to the results
-                  </Link>
-                ) : (
-                  !complete && (
-                    <button type="button" onClick={finish} className={next ? btn.ghost : btn.gold}>
-                      {state.mode === 'two_person' && state.activePlayer === 'traveller1' ? 'Lock in my ballot' : 'Lock in and see the results'}
-                    </button>
-                  )
-                )}
-              </div>
-            </>
+          <h1 className="bf-logo text-4xl sm:text-5xl">Tonight’s show</h1>
+          {eps.done === 0 && (
+            <p className="max-w-2xl text-bf-cream/85">
+              Each episode has three hidden contestants. The host asks them three questions. Then{' '}
+              {state.mode === 'quick' ? 'you choose one together' : 'you each choose one in secret'}, and only then do they reveal who they are.
+            </p>
           )}
+          <div className="max-w-md">
+            <div className="flex justify-between text-sm text-bf-cream/80">
+              <span>
+                {eps.done} of {eps.total} episodes decided
+              </span>
+            </div>
+            <div className="mt-1 h-3 overflow-hidden rounded-full bg-bf-cream/10" role="progressbar" aria-valuemin={0} aria-valuemax={eps.total} aria-valuenow={eps.done} aria-label="Show progress">
+              <div className="h-full rounded-full bg-bf-seafoam transition-all" style={{ width: `${(eps.done / Math.max(1, eps.total)) * 100}%` }} />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {ready ? (
+              <Link href="/blind-flight/results" className={btn.gold}>
+                See the results <ChevronRight aria-hidden className="size-5" />
+              </Link>
+            ) : (
+              <Link href={resumeHref(state)} className={btn.primary}>
+                {eps.done === 0 && current?.number === 1 ? 'Start episode one' : `Continue: ${current?.title}`} <ChevronRight aria-hidden className="size-5" />
+              </Link>
+            )}
+          </div>
         </section>
 
-        {eps.map((e) => (
-          <EpisodeStage key={e.id} episode={e} />
+        {episodes.map((e) => (
+          <EpisodeStage key={e.id} episode={e} current={e.id === current?.id} />
         ))}
 
         <section className="flex flex-col gap-4 rounded-3xl border border-dashed border-bf-cream/30 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -164,13 +155,9 @@ export default function ShowScreen() {
           <Link href="/blind-flight/compare" className={btn.link}>
             Skip to comparison
           </Link>
-          {resultsReady(state) && (
-            <Link href="/blind-flight/results" className={btn.link}>
-              Results
-            </Link>
-          )}
         </div>
       </div>
     </Shell>
   );
 }
+

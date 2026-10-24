@@ -5,8 +5,7 @@ export const copy = {
   rules: 'You are judging destinations. They are not allowed to judge your hand luggage.',
   price: 'A romantic proposal. From a spreadsheet.',
   pricePending: 'Our glamorous finance department has not confirmed a return airfare.',
-  handover: 'Pass the phone. The nation demands an independent opinion.',
-  match: 'It’s a match! Two people are willing to endure the same airport security queue.',
+  match: 'Two people willing to endure the same airport security queue.',
   disagreement: 'One person’s dream getaway. Another person’s connecting flight nightmare.',
   noMatches: 'We have some talking to do.',
   grandFinal: 'And the winner is… a destination you’ll still need to book yourselves.',
@@ -22,22 +21,22 @@ export const mysteryIntros = [
   'A contestant who describes themselves as “well connected”. We shall see.',
 ];
 
-export const voteReactions = {
-  keep: [
-    'A potential long-term relationship. Of four or five nights.',
-    'The heart has spoken. The bank balance will be consulted later.',
-    'Into the keep pile. The contestant is visibly moved.',
-  ],
-  maybe: [
-    'Not a no. Every contestant’s favourite answer.',
-    'Needs convincing. The contestant has been handed a leaflet.',
-    'A cautious maybe. We call that chemistry in this studio.',
-  ],
-  pass: [
-    'A brutal rejection. The city will have to recover in private.',
-    'It’s not you, it’s the transfer.',
-    'Shown the trapdoor. Politely.',
-  ],
+/** The same three questions go to every contestant. Clue n answers question n. */
+export const hostQuestions = [
+  'What’s the first thing I’d notice about you?',
+  'Tell me something about yourself that might surprise me.',
+  'And finally: how will I recognise you at arrivals?',
+];
+
+export const showCopy = {
+  intros: 'First, a few words from each of our hopefuls.',
+  choose: 'Decision time. Keep it to yourself.',
+  quickChoose: 'Decision time. Confer quietly.',
+  handover: 'Pass the phone. The nation demands an independent opinion.',
+  revealIntro: 'Before we meet your date, let’s see who you turned down.',
+  match: 'Somebody fetch the confetti. And the passports.',
+  split: 'One of you has questions. Both of you have a date.',
+  chosen: 'A date has been arranged. Bring a coat.',
 };
 
 export function pick<T>(list: T[], seed: string): T {

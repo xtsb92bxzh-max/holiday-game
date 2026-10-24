@@ -1,12 +1,10 @@
 'use client';
 
-import { ExternalLink as ExternalIcon, Heart, HelpCircle, Info, X } from 'lucide-react';
+import { ExternalLink as ExternalIcon, Heart, Info } from 'lucide-react';
 import Link from 'next/link';
 import assumptions from '@/data/assumptions.json';
 import { formatDate } from '@/lib/dates';
 import type { Itinerary } from '@/lib/types';
-import type { Vote } from '../lib/voteMatching';
-import { voteLabels } from '../lib/voteMatching';
 
 export const btn = {
   primary:
@@ -42,26 +40,12 @@ export function HostSays({ children, className = '' }: { children: React.ReactNo
   );
 }
 
-const voteStyle: Record<Vote, string> = {
-  keep: 'bg-bf-red text-bf-cream',
-  maybe: 'bg-bf-custard text-bf-ink',
-  pass: 'bg-bf-cream/85 text-bf-ink',
-};
-export const voteIcon: Record<Vote, typeof Heart> = { keep: Heart, maybe: HelpCircle, pass: X };
-
-export function VoteChip({ vote, who, className = '' }: { vote?: Vote; who?: string; className?: string }) {
-  if (!vote)
-    return (
-      <span className={`inline-flex items-center gap-1 rounded-full border border-current/40 px-2.5 py-0.5 text-xs font-semibold opacity-75 ${className}`}>
-        {who ? `${who}: ` : ''}Not judged yet
-      </span>
-    );
-  const Icon = voteIcon[vote];
+/** "Ben chose this one." Shown only once a choice is public. */
+export function PickChip({ who, className = '' }: { who: string; className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${voteStyle[vote]} ${className}`}>
-      <Icon aria-hidden className="size-3.5" />
-      {who ? `${who}: ` : ''}
-      {voteLabels[vote].short}
+    <span className={`inline-flex items-center gap-1 rounded-full bg-bf-red px-2.5 py-0.5 text-xs font-bold text-bf-cream ${className}`}>
+      <Heart aria-hidden className="size-3.5 fill-current" />
+      {who}
     </span>
   );
 }

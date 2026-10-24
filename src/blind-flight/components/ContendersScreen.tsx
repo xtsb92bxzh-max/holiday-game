@@ -14,7 +14,7 @@ import { btn, HostSays } from './ui';
 
 export default function ContendersScreen() {
   const { state, dispatch } = useShow();
-  const done = resultsReady(state) || state.ballotComplete.traveller1;
+  const done = resultsReady(state);
   return (
     <Shell>
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:py-12">
@@ -26,11 +26,11 @@ export default function ContendersScreen() {
           <HostSays>They didn’t make the main show, but they’ve brought their own luggage.</HostSays>
           <p className="max-w-2xl text-bf-cream/85">
             Every destination here has a trip that fits your dates. Some have a priced quote. Others only have a flight timetable and a room quote, so
-            their total stays blank. Added contestants join a bonus round for both travellers.
+            their total stays blank. Added contestants join a bonus round at the end of the show. They arrive already unmasked.
           </p>
           {done && (
             <p className="max-w-2xl rounded-xl bg-bf-custard/10 p-3 text-sm">
-              A ballot is already locked in. Anyone added now is unjudged on that ballot and counts neither way. That traveller can vote on them later with Edit on the results page.
+              The show is already decided. Anyone added now appears in a bonus round, and the results wait until you have chosen there too.
             </p>
           )}
         </section>
