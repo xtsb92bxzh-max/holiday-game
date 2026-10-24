@@ -28,6 +28,15 @@
   --color-bf-cream: #fff6e5;
   --color-bf-ink: #1c2538;
   --font-bf-display: 'Shrikhand', 'Fraunces Variable', Georgia, serif;
+
+  /* The Great British Getaway Show */
+  --color-gb-navy: #192943;
+  --color-gb-teal: #196c73;
+  --color-gb-tomato: #c95140;
+  --color-gb-gold: #f3c44e;
+  --color-gb-paper: #fff7e6;
+  --color-gb-black: #141b29;
+  --font-gb-display: 'Anton', 'Impact', 'Arial Narrow', sans-serif;
 }
 
 @layer base {
@@ -273,4 +282,160 @@
 
 .bf-ticket-edge {
   background: radial-gradient(circle at 50% 0, transparent 6px, var(--color-bf-cream) 6.5px) 0 0 / 18px 12px repeat-x;
+}
+
+/* ───────────── The Great British Getaway Show studio ───────────── */
+
+.gb-studio {
+  background:
+    radial-gradient(ellipse 70% 38% at 50% -6%, rgb(243 196 78 / 0.2), transparent 70%),
+    repeating-linear-gradient(90deg, rgb(255 247 230 / 0.025) 0 1px, transparent 1px 64px),
+    linear-gradient(180deg, #192943 0%, #16233a 55%, #141b29 100%);
+  color: var(--color-gb-paper);
+}
+
+/* Velvet curtain strip for the title screen. */
+.gb-curtain {
+  background:
+    linear-gradient(90deg, rgb(0 0 0 / 0.4), transparent 25%, transparent 75%, rgb(0 0 0 / 0.4)),
+    repeating-linear-gradient(90deg, #5e2219 0, #a3402f 12px, #c95140 22px, #a3402f 32px, #5e2219 44px);
+}
+
+.gb-wordmark {
+  font-family: var(--font-gb-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: var(--color-gb-gold);
+  -webkit-text-stroke: 2px var(--color-gb-paper);
+  paint-order: stroke fill;
+  text-shadow: 3px 3px 0 var(--color-gb-tomato);
+}
+.gb-wordmark-deep {
+  text-shadow:
+    4px 4px 0 var(--color-gb-tomato),
+    8px 8px 0 var(--color-gb-black);
+}
+.gb-display {
+  font-family: var(--font-gb-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Faux brass plate behind the wordmark. */
+.gb-brass {
+  background:
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.05) 0 2px, transparent 2px 6px),
+    linear-gradient(180deg, #e9c86a, #b38a2e 45%, #8a6720 55%, #d9b55a);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.45),
+    inset 0 -3px 0 rgb(0 0 0 / 0.3),
+    0 12px 30px rgb(0 0 0 / 0.45);
+}
+
+/* Light bulbs round a sign. Static under reduced motion. */
+.gb-bulbs {
+  position: relative;
+  isolation: isolate;
+}
+.gb-bulbs::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: inherit;
+  padding: 7px;
+  background:
+    radial-gradient(circle, #fff3c4 0 2.5px, #f3c44e 3px, transparent 4.5px) 0 0 / 20px 20px,
+    linear-gradient(#7a5a1a, #4a360d);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  z-index: -1;
+  animation: gb-bulbs 1.6s steps(2) infinite;
+}
+@keyframes gb-bulbs {
+  to { background-position: 10px 0, 0 0; }
+}
+
+.gb-starburst {
+  clip-path: polygon(50% 0%, 57% 18%, 75% 7%, 71% 27%, 93% 25%, 80% 41%, 100% 50%, 80% 59%, 93% 75%, 71% 73%, 75% 93%, 57% 82%, 50% 100%, 43% 82%, 25% 93%, 29% 73%, 7% 75%, 20% 59%, 0% 50%, 20% 41%, 7% 25%, 29% 27%, 25% 7%, 43% 18%);
+}
+
+.gb-paper {
+  background: var(--color-gb-paper);
+  color: var(--color-gb-black);
+}
+
+.gb-pinstripe {
+  background:
+    repeating-linear-gradient(90deg, rgb(25 41 67 / 0.07) 0 1px, transparent 1px 10px),
+    var(--color-gb-paper);
+  color: var(--color-gb-black);
+}
+
+/* Big numbered price card, like a studio placard. */
+.gb-placard {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.08), transparent 40%),
+    var(--color-gb-teal);
+  box-shadow:
+    inset 0 0 0 4px var(--color-gb-gold),
+    inset 0 0 0 7px var(--color-gb-black),
+    0 14px 30px rgb(0 0 0 / 0.4);
+}
+
+/* Picture-reveal tiles. */
+.gb-tile {
+  background:
+    radial-gradient(circle at 30% 25%, rgb(255 255 255 / 0.18), transparent 50%),
+    linear-gradient(135deg, #196c73, #11484d);
+  box-shadow:
+    inset 0 0 0 3px var(--color-gb-gold),
+    inset 0 0 0 5px var(--color-gb-black);
+}
+.gb-tile:nth-child(even) {
+  background:
+    radial-gradient(circle at 30% 25%, rgb(255 255 255 / 0.18), transparent 50%),
+    linear-gradient(135deg, #c95140, #8e3528);
+}
+
+/* The dartboard. */
+.gb-board {
+  background:
+    radial-gradient(circle, #141b29 0 9%, #c95140 9% 12%, transparent 12%),
+    repeating-radial-gradient(circle, transparent 0 14%, rgb(20 27 41 / 0.6) 14% 15%),
+    conic-gradient(#196c73 0 60deg, #f3c44e 60deg 120deg, #c95140 120deg 180deg, #196c73 180deg 240deg, #f3c44e 240deg 300deg, #c95140 300deg 360deg);
+  box-shadow:
+    0 0 0 10px #141b29,
+    0 0 0 14px #f3c44e,
+    0 20px 50px rgb(0 0 0 / 0.5);
+}
+
+.gb-certificate {
+  background:
+    radial-gradient(circle at 50% 0, rgb(243 196 78 / 0.25), transparent 60%),
+    var(--color-gb-paper);
+  color: var(--color-gb-black);
+  box-shadow:
+    inset 0 0 0 6px var(--color-gb-paper),
+    inset 0 0 0 9px var(--color-gb-gold),
+    inset 0 0 0 11px var(--color-gb-navy);
+}
+
+@media print {
+  .gb-studio {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .gb-no-print {
+    display: none !important;
+  }
+  .gb-print-plain {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
 }

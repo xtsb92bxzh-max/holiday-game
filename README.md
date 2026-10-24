@@ -1,15 +1,16 @@
 # Holiday Games
 
-Two game-show front ends for choosing a January 2027 European break for two. Both read the same researched spreadsheet, so they always show the same prices.
+Three game-show front ends for choosing a January 2027 European break for two. All read the same researched spreadsheet, so they always show the same prices.
 
 - The Great January Getaway (`/january-getaway`) is a tongue-in-cheek Saturday-night prize show: conveyor belt, guess the price, Keep / Maybe / Bin and a Grand Final.
 - Blind Flight (`/blind-flight`) is a retro dating-show parody. Destinations flirt, drop clues and reveal themselves, then two travellers vote in private on one phone and the matches are revealed together.
+- The Great British Getaway Show (`/getaway-show`) is a late-1980s Saturday-evening game-show parody: a tile-flip picture reveal, higher-or-lower price duels, a dartboard of wildcards, private two-person ballots and a grand final.
 
 All prices are indicative totals for two, observed on 23 October 2026. They are not live fares. Every price and link needs rechecking before you book.
 
 ## Games on this site
 
-The home page (`/`) lists every game. The January Getaway lives at `/january-getaway` and Blind Flight at `/blind-flight`.
+The home page (`/`) lists every game. The January Getaway lives at `/january-getaway`, Blind Flight at `/blind-flight` and the Getaway Show at `/getaway-show`.
 
 To add a game, give it its own folder under `src/app/` and add an entry to `src/lib/games.ts`. Set `comingSoon: true` to show it on the home page before it is playable.
 
@@ -21,6 +22,7 @@ You will need Node 20 or later.
 npm install
 npm run dev          # http://localhost:3000
 npm test             # data and logic checks
+node tests/e2e/getaway-show.smoke.cjs   # browser play-through; needs `npm start` running and Playwright installed
 npm run typecheck
 npm run build        # production build, as Vercel runs it
 ```
@@ -135,6 +137,76 @@ State is saved under the `blind-flight:v2` key with `schemaVersion: 2`. On load,
 
 Two-person voting works on one phone only. Nothing syncs between devices.
 
+## The Great British Getaway Show
+
+The brief is in `docs/GETAWAY_SHOW_BUILD_BRIEF.md`. It is broadcast on GBC, the Getaway Broadcasting Corporation, a fictional channel. Round names, artwork, lettering and presenter lines are original.
+
+### How a game runs
+
+1. The title screen offers Roll the titles, Skip the nonsense (the table) and What do these prices include?. A saved show offers Resume show and Start again.
+2. Members of the audience: the two-person edition (default) or the quick edition, with optional nicknames.
+3. Round 1, Catch a Flight. Twelve featured destinations in four broadcast groups. Each hides a real photo under nine numbered tiles. Show me a bit more flips three tiles and adds a clue. Reveal the city works at any time. The info card gives three reasons, the catch, dates and flight evidence, and informal bookmarks. Optional studio points for early guesses.
+4. Round 2, Play Your Flights Right. Six higher-or-lower duels along a fixed price ladder of priced destinations. Every reveal shows the total for two, a breakdown and the research date. A wrong guess eliminates nothing.
+5. Round 3, The Holiday Bullseye. Six board segments, picked by button or by Throw the dart. Each pick brings on one or two destinations not yet shown, or says All prizes claimed. Wildcards can be added to the ballot with Total unknown showing. More destinations lists everyone else.
+6. Round 4, The Nation Has Voted. Traveller A votes Yes, Maybe or No, locks in and passes the phone. Traveller B votes without A's votes anywhere on screen. The results stay sealed until Reveal the results.
+7. Results: The public have spoken (Yes + Yes), A grower, not a shower (Yes + Maybe, Maybe + Maybe), Controversy in the studio (Yes or Maybe against No), Did not make it past the auditions (No + No) and Not voted. A missing vote is never a No. Either ballot can be edited privately.
+8. Grand final, Here's What You Could Have Flown. Up to three finalists side by side, ranked by votes. You can reorder by cheapest, simplest journey, most time there, winter escape or cafés and culture; anything that cannot be compared is labelled. You choose the winner, which produces a printable certificate. Print, Copy comparison and Copy the shortlist all work offline.
+
+The quick edition has one shared ballot and gives Favourites, Maybes and Passes. It never calls anything a match.
+
+Studio points, price duels and the dartboard never change the ranking. Only votes do.
+
+Every stage has Previous, Skip round, Go to sensible comparison and Enough nonsense — see the table. The lightning button skips animations; the speaker button turns on optional sound.
+
+### Routes
+
+| Route | Screen |
+|---|---|
+| `/getaway-show` | Title screen and pre-show |
+| `/getaway-show/catch-a-flight` | Round 1 |
+| `/getaway-show/higher-or-lower` | Round 2 |
+| `/getaway-show/bullseye` | Round 3 |
+| `/getaway-show/vote` | Round 4: ballots and handover |
+| `/getaway-show/results` | Results |
+| `/getaway-show/final` | Grand final and certificate |
+| `/getaway-show/holidays` | Every eligible itinerary, sortable and filterable |
+| `/getaway-show/about` | What the prices include |
+
+### Where things live
+
+| File | What it holds |
+|---|---|
+| `src/getaway-show/data/contestants.ts` | Presenter setup, three clues, pitch and the catch for each featured destination; photo notes |
+| `src/getaway-show/data/show.ts` | Broadcast groups, the price ladder, board segments and board tags |
+| `src/getaway-show/data/copy.ts` | Presenter lines |
+| `src/getaway-show/lib/cast.ts` | Which trips can appear, date variants, duel trips and board pools |
+| `src/getaway-show/lib/cost.ts` | Price breakdown. Uses the workbook total once and never recomputes it |
+| `src/getaway-show/lib/matching.ts` | The two-person outcome rules |
+| `src/getaway-show/lib/state.ts` | Game state, actions and selectors |
+| `src/getaway-show/lib/persistence.ts` | Saving to `localStorage` under `great-british-getaway-show:v3`, with clean-up on load |
+| `src/getaway-show/lib/summary.ts` | Copy and share text |
+
+Facts are shared with the other games. Names, countries, photos, highlights and typical weather come from `src/data/destinations.ts`. Prices, dates, flights, hotels and links come from `src/data/itineraries.json`.
+
+### Changing the show
+
+- To change the Round 1 cast, edit `broadcastGroups` in `show.ts`. Each featured destination needs a full entry in `contestants.ts`. A test checks that the clues never name the city.
+- To change the price duels, edit `priceLadder`. Each card is compared with the one before it. Unpriced or repeated entries are dropped, so the number of duels follows the data.
+- Board tags for "very old buildings", "possibly hypothermia", "I require sunshine" and "eat your way round" are in `boardTags`. "Cheap as chips" is worked out from prices (up to `CHEAP_CEILING_GBP`). "The curious wildcard" is every show destination with no priced trip.
+- A destination with several date or airport options is one contestant with a Pick your dates switch. Changing dates resets any duel that destination is in. Votes stay.
+
+### Screenshots
+
+Taken at iPhone width (375 px) by the smoke test: `docs/screenshots/getaway-show/`.
+
+| Title | Round 1 | Round 2 | Round 3 |
+|---|---|---|---|
+| ![Title screen](docs/screenshots/getaway-show/01-title.png) | ![Picture reveal](docs/screenshots/getaway-show/03-round1-clues.png) | ![Higher or lower](docs/screenshots/getaway-show/05-round2-duel.png) | ![The board](docs/screenshots/getaway-show/06-round3-board.png) |
+
+| Handover | Results | Grand final |
+|---|---|---|
+| ![Pass the phone](docs/screenshots/getaway-show/08-handover.png) | ![Results](docs/screenshots/getaway-show/09-results.png) | ![Certificate](docs/screenshots/getaway-show/10-final.png) |
+
 ## Deploying to Vercel
 
 The app is a standard Next.js 15 App Router project. It needs no environment variables, database or API keys.
@@ -160,5 +232,7 @@ Guesses, decisions, the chosen dates, contestant names and settings are saved in
 - Several priced fares were indexed or detailed quotes, not reconfirmed live availability. Flight times for most priced options were not recorded.
 - Weather lines describe typical January climate from general knowledge. They are not forecasts.
 - Points in the price round are entertainment only and do not rank the holidays.
-- Independent voting on two phones, live fares and shared links are not built in either game. They are listed as phase 2 in both briefs.
+- Independent voting on two phones, live fares and shared links are not built in any game.
+- Eight unpriced Getaway Show wildcards (Santander, Istanbul, Alicante, Lanzarote, Gran Canaria, Barcelona, Geneva and Zurich) have no photo yet and use the designed poster fallback.
+- The repository has no ESLint set-up, so there is no `npm run lint`. `npm run typecheck` and `npm run build` cover type and build errors.
 - Blind Flight's clues and pitches are editorial copy checked against general knowledge, not against the workbook.
