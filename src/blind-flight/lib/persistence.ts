@@ -91,6 +91,7 @@ export function sanitise(raw: unknown): GameState | null {
     },
     destinationOrder,
     seed: typeof raw.seed === 'number' && Number.isInteger(raw.seed) && raw.seed >= 0 ? raw.seed : null,
+    balancedDeal: raw.balancedDeal === true,
     preferredItineraryByDestination: record(raw.preferredItineraryByDestination, (k, val) =>
       typeof val === 'string' && variantsFor(k).some((v) => v.id === val) ? val : undefined,
     ),

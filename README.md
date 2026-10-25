@@ -91,7 +91,7 @@ The brief is in `docs/BLIND_FLIGHT_BUILD_BRIEF.md`.
 ### How a game runs
 
 1. On the title screen you choose a two-person game (the default) or quick play, with optional nicknames.
-2. The show has four episodes of three hidden contestants. Each new show shuffles the line-up: who shares a stage, the running order and the seats. The shuffle is seeded and saved, so a reload keeps the same show. Shuffle the line-up on the episode list deals again before anything has been played. You watch each episode together: every contestant gives a one-liner, then answers the host's three questions. Answer n is clue n from `profiles.ts`.
+2. The show has four episodes of three hidden contestants. Each new show shuffles the line-up: who shares a stage, the running order and the seats. The shuffle never puts two contestants from the same country, or from the same themed episode, on one stage. The shuffle is seeded and saved, so a reload keeps the same show. Shuffle the line-up on the episode list deals again before anything has been played. You watch each episode together: every contestant gives a one-liner, then answers the host's three questions. Answer n is clue n from `profiles.ts`.
 3. When the host calls time, Traveller 1 picks one contestant in secret and guesses which city it really is, from four options. A right guess scores 4 points on the one-liners alone, down to 1 after all three questions. Traveller 1 then passes the phone. A full-screen cover hides the choice. Traveller 1 can change their mind until the phone is passed. Traveller 2 then picks from the same three.
 4. The reveal unmasks the contestants nobody chose first, then anyone one of you chose, then a mutual choice. Each reveal card shows the photo, pitch, price and the awkward bit. Dates, flights, hotel, weather, links and the price breakdown sit behind "Full details".
 5. Once everyone is unmasked there is a price duel over your date, whose price stays hidden until then. Each of you types a masked guess for two. Closest without going over scores 2, plus 1 within 5%. Unpriced dates have no duel, and you can skip it.
@@ -137,7 +137,7 @@ Facts are not duplicated. Names, countries, photos, highlights, typical weather 
 
 ### Changing the cast
 
-- To change who is featured, edit the `cast` arrays in `episodes.ts`. Shuffled shows draw on the same twelve contestants and take their titles from `mixedEpisodes`. The themed episodes still run as written for a show started before shuffling existed. Each destination needs a profile in `profiles.ts` with three clues. A test checks this.
+- To change who is featured, edit the `cast` arrays in `episodes.ts`. Shuffled shows draw on the same twelve contestants and take their titles from `mixedEpisodes`. The themed episodes still run as written for a show started before shuffling existed. Each destination needs a profile in `profiles.ts` with three clues. A test checks this. Clues run from broad to a strong hint. No one-liner or clue may name a city or country in the show, or a landmark that settles the guess. A test checks this against a list of giveaways in `tests/blind-flight.test.ts`.
 - A destination drops out of the show automatically if it has no trip in the travel window. An empty episode is skipped.
 - Every other destination with an eligible trip appears under More eligible contenders. Adding one creates a bonus round. These arrive already revealed, with no clues.
 - Trips from the `Connections to verify` sheet have no established flights. They appear in Sensible mode only.
@@ -145,7 +145,7 @@ Facts are not duplicated. Names, countries, photos, highlights, typical weather 
 
 ### Saved progress
 
-State is saved under the `blind-flight:v3` key with `schemaVersion: 3`. Saves from the old ballot version are ignored. On load, anything unreadable, from another schema version, or pointing at a destination that no longer exists is dropped. Use Reset the whole show in the footer, or Start again on the title screen.
+State is saved under the `blind-flight:v3` key with `schemaVersion: 3`. Saves from the old ballot version are ignored. A shuffled show saved before the balanced deal keeps its original line-up until it is reshuffled or reset. On load, anything unreadable, from another schema version, or pointing at a destination that no longer exists is dropped. Use Reset the whole show in the footer, or Start again on the title screen.
 
 Two-person play works on one phone only. Nothing syncs between devices.
 
