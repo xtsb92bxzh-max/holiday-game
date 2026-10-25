@@ -11,6 +11,7 @@ import { shortlistCsv, shortlistRows, shortlistText } from '@/lib/exportShortlis
 import type { Destination, Itinerary } from '@/lib/types';
 import Photo from './Photo';
 import VotingControls from './VotingControls';
+import FinalVote from './FinalVote';
 import ItineraryPicker from './ItineraryPicker';
 import { BookingLinks, FlightFacts, PriceBreakdown, ProvenanceLine } from './TripDetails';
 import { btn, HostLine, Provenance } from './ui';
@@ -143,6 +144,8 @@ export default function GrandFinal() {
           {toast}
         </p>
       </div>
+
+      {!winner && kept.length >= 2 && <FinalVote keptIds={kept.map(({ d }) => d.id)} />}
 
       {/* Comparison */}
       {showCompare && compared.length >= 2 && (

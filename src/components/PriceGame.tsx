@@ -102,7 +102,7 @@ export default function PriceGame({ destinationId, it }: { destinationId: string
         <p className="mt-1 text-center text-xs text-cream/75">
           All-in estimate for two: flights, room, bags and transfers.
           {priced && ' Both guess in secret. Within 5% scores 10, within 10% scores 6, within 20% scores 3.'}
-          {priced && ` The closest guess that doesn’t go over gets ${UNDER_BONUS} more.`}
+          {priced && ` The closest of those that doesn’t go over gets ${UNDER_BONUS} more.`}
         </p>
 
         <div className="my-4 flex min-h-[5.5rem] items-center justify-center rounded-xl bg-black/50 px-3 py-3 shadow-[inset_0_2px_10px_#000]">

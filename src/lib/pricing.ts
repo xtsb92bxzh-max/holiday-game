@@ -47,14 +47,18 @@ export function closenessPoints(guess: number, actual: number): 0 | 3 | 6 | 10 {
   return 0;
 }
 
-/** Extra points for the closest guess that does not go over. */
+/** Extra points for the closest guess that does not go over, if it is close enough to score at all. */
 export const UNDER_BONUS = 2;
 
-/** Each contestant's points for one price: closeness, plus the bonus for the closest guess not over. */
+/** Each contestant's points for one price: closeness, plus the bonus for the closest scoring guess not over. */
 export function duelPoints(guesses: readonly (number | null)[], actual: number): number[] {
   const under = guesses.filter((g): g is number => g != null && g <= actual);
   const best = under.length > 0 ? Math.max(...under) : null;
-  return guesses.map((g) => (g == null ? 0 : closenessPoints(g, actual) + (g === best ? UNDER_BONUS : 0)));
+  return guesses.map((g) => {
+    if (g == null) return 0;
+    const pts = closenessPoints(g, actual);
+    return pts > 0 && g === best ? pts + UNDER_BONUS : pts;
+  });
 }
 
 export function formatGBP(n: number | null, opts: { pence?: boolean } = {}): string {

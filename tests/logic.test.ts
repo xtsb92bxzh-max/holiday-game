@@ -41,6 +41,8 @@ test('the closest guess that does not go over earns the bonus', () => {
   assert.deepEqual(duelPoints([450, 500], 400), [3, 0], 'both over: no bonus');
   assert.deepEqual(duelPoints([380, 380], 400), [12, 12], 'a tie shares the bonus');
   assert.deepEqual(duelPoints([null, 390], 400), [0, 12], 'no guess scores nothing');
+  assert.deepEqual(duelPoints([1, 500], 400), [0, 0], 'a silly low guess earns no bonus');
+  assert.deepEqual(duelPoints([330, 405], 400), [3 + 2, 10], 'the bonus needs a scoring guess, not the best one');
 });
 
 test('both contestants lock in a guess once, and points add up after the reveal', () => {
@@ -113,4 +115,38 @@ test('the running order is fixed once anything has been judged', () => {
   const s = reducer(reducer(initialState, { type: 'shuffle', seed: 1 }), { type: 'decide', destinationId: 'prague', decision: 'keep' });
   assert.equal(reducer(s, { type: 'shuffle', seed: 2 }), s);
   assert.equal(reducer(s, { type: 'reset' }).seed, null, 'a reset deals again on the next start');
+});
+
+// ───────────── The final vote ─────────────
+
+test('settling the final: agreement wins, a split goes to the points leader, level scores to nobody', async () => {
+  const { settleFinal } = await import('../src/lib/finalVote');
+  assert.equal(settleFinal(['prague', undefined], [0, 0]), undefined, 'waits for both picks');
+  assert.deepEqual(settleFinal(['prague', 'prague'], [0, 9]), { kind: 'agreed', id: 'prague' });
+  assert.deepEqual(settleFinal(['prague', 'gdansk'], [4, 9]), { kind: 'split', ids: ['prague', 'gdansk'], casting: 1 });
+  assert.deepEqual(settleFinal(['prague', 'gdansk'], [9, 4]), { kind: 'split', ids: ['prague', 'gdansk'], casting: 0 });
+  assert.equal((settleFinal(['prague', 'gdansk'], [5, 5]) as { casting: unknown }).casting, null);
+});
+
+test('January Getaway final vote: secret picks in order, from kept prizes only', async () => {
+  const { finalVerdict, finalPicks } = await import('../src/lib/gameState');
+  const keep = (ids: string[]) => ids.map((id) => ({ type: 'decide', destinationId: id, decision: 'keep' }) as const);
+  let s = [...keep(['prague', 'gdansk']), { type: 'decide', destinationId: 'kaunas', decision: 'bin' } as const].reduce(reducer, initialState);
+  assert.equal(reducer(s, { type: 'finalPick', contestant: 1, destinationId: 'prague' }), s, 'Contestant Two never picks first');
+  assert.equal(reducer(s, { type: 'finalPick', contestant: 0, destinationId: 'kaunas' }), s, 'only kept prizes');
+  s = reducer(s, { type: 'finalPick', contestant: 0, destinationId: 'prague' });
+  assert.equal(reducer(s, { type: 'finalPick', contestant: 0, destinationId: 'gdansk' }), s, 'a pick cannot change');
+  const agreed = reducer(s, { type: 'finalPick', contestant: 1, destinationId: 'prague' });
+  assert.equal(agreed.winner, 'prague', 'agreement crowns the winner');
+
+  // A split with Contestant Two ahead on points.
+  s = reducer(s, { type: 'lockGuess', destinationId: 'kaunas', itineraryId: 'EU002', contestant: 1, guess: 380 });
+  s = reducer(s, { type: 'reveal', destinationId: 'kaunas', itineraryId: 'EU002', points: [0, 12] });
+  s = reducer(s, { type: 'finalPick', contestant: 1, destinationId: 'gdansk' });
+  assert.equal(s.winner, null, 'a split crowns nobody by itself');
+  assert.deepEqual(finalVerdict(s), { kind: 'split', ids: ['prague', 'gdansk'], casting: 1 });
+  // Binning a picked prize takes that pick out of the vote.
+  const binned = reducer(s, { type: 'decide', destinationId: 'gdansk', decision: 'bin' });
+  assert.deepEqual(finalPicks(binned), ['prague', null]);
+  assert.deepEqual(reducer(s, { type: 'finalVoteAgain' }).finalPicks, [null, null]);
 });

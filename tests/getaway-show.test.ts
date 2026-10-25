@@ -34,6 +34,7 @@ import {
   studioPoints,
   pictureOptions,
   duelDone,
+  finalVerdict,
   type Action,
   type GameState,
   type Vote,
@@ -472,4 +473,26 @@ test('the running order survives a reload and is fixed once the show is under wa
   s = reducer(initialState, { type: 'revealIdentity', destinationId: featuredIds[0] });
   assert.equal(reducer(s, { type: 'start', seed: 8 }).seed, null, 'a show from before shuffling keeps its order');
   assert.equal(sanitise({ ...JSON.parse(JSON.stringify(s)), seed: -3 })!.seed, null);
+});
+
+test('the final vote: secret picks from the finalists, agreement wins, a split goes to the studio-points leader', () => {
+  const id = featuredIds[0];
+  let s = run([{ type: 'setFinalists', ids: ['prague', 'krakow'] }]);
+  assert.equal(reducer(s, { type: 'finalPick', player: 'b', destinationId: 'prague' }), s, 'B never picks first');
+  assert.equal(reducer(s, { type: 'finalPick', player: 'a', destinationId: 'gdansk' }), s, 'finalists only');
+  s = reducer(s, { type: 'finalPick', player: 'a', destinationId: 'prague' });
+  assert.equal(reducer(s, { type: 'finalPick', player: 'b', destinationId: 'prague' }).winnerDestinationId, 'prague');
+
+  const split = reducer(s, { type: 'finalPick', player: 'b', destinationId: 'krakow' });
+  assert.equal(split.winnerDestinationId, undefined);
+  assert.deepEqual(finalVerdict(split), { kind: 'split', ids: ['prague', 'krakow'], casting: null }, 'level points: no casting vote');
+  const aAhead = run([{ type: 'buzz', destinationId: id, player: 'a', guessId: id }], split);
+  assert.equal((finalVerdict(aAhead) as { casting: unknown }).casting, 0);
+
+  // Dropping a finalist drops its pick; the quick edition has no final vote.
+  assert.deepEqual(reducer(split, { type: 'toggleFinalist', destinationId: 'krakow' }).finalPicks.b, 'krakow', 'stored');
+  assert.equal(finalVerdict(reducer(split, { type: 'toggleFinalist', destinationId: 'krakow' })), undefined, 'but no longer counts');
+  const quick = run([{ type: 'setMode', mode: 'quick' }, { type: 'setFinalists', ids: ['prague', 'krakow'] }]);
+  assert.equal(reducer(quick, { type: 'finalPick', player: 'a', destinationId: 'prague' }), quick);
+  assert.deepEqual(sanitise(JSON.parse(JSON.stringify(split)))!.finalPicks, split.finalPicks, 'picks survive a reload');
 });

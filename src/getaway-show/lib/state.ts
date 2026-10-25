@@ -1,3 +1,4 @@
+import { settleFinal, type FinalVerdict } from '../../lib/finalVote';
 import { isSeed, seededShuffle } from '../../lib/shuffle';
 import { duelAnswer, duelItinerary, featuredIds, groupOf, isFeatured, isShowable, ladderIds, showDestinationIds, variantsFor, type DuelAnswer } from './cast';
 import { groupQuick, groupTwoPerson, type Vote } from './matching';
@@ -74,6 +75,8 @@ export type GameState = {
   finalistsCustomised: boolean;
   finalistDestinationIds: string[];
   winnerDestinationId?: string;
+  /** Each traveller's secret pick in the final vote. A pick only counts while it is a finalist. */
+  finalPicks: Partial<Record<PlayerId, string>>;
 
   soundEnabled: boolean;
   /** null follows the device setting. */
@@ -107,6 +110,7 @@ export const initialState: GameState = {
   resultsRevealed: false,
   finalistsCustomised: false,
   finalistDestinationIds: [],
+  finalPicks: {},
   soundEnabled: false,
   reduceMotion: null,
   seed: null,
@@ -139,6 +143,8 @@ export type Action =
   | { type: 'setFinalists'; ids: string[] }
   | { type: 'toggleFinalist'; destinationId: string }
   | { type: 'setWinner'; destinationId?: string }
+  | { type: 'finalPick'; player: PlayerId; destinationId: string }
+  | { type: 'finalVoteAgain' }
   | { type: 'setSound'; on: boolean }
   | { type: 'setReduceMotion'; value: boolean | null }
   | { type: 'reset' };
@@ -345,6 +351,20 @@ export function reducer(state: GameState, action: Action): GameState {
       if (action.destinationId && !effectiveFinalists(state).includes(action.destinationId)) return state;
       return { ...state, winnerDestinationId: action.destinationId };
 
+    case 'finalPick': {
+      const picks = finalPicks(state);
+      const p = action.player;
+      // Two-person only. Traveller B picks second, so A's pick is never on screen for B.
+      if (state.mode !== 'two_person' || !effectiveFinalists(state).includes(action.destinationId)) return state;
+      if (picks[p] || (p === 'b' && !picks.a)) return state;
+      const settled = { ...state, finalPicks: { ...picks, [p]: action.destinationId } };
+      const v = finalVerdict(settled);
+      return v?.kind === 'agreed' ? { ...settled, winnerDestinationId: v.id } : settled;
+    }
+
+    case 'finalVoteAgain':
+      return { ...state, finalPicks: {} };
+
     case 'setSound':
       return { ...state, soundEnabled: action.on };
 
@@ -505,6 +525,24 @@ export function studioPoints(state: GameState): Record<PlayerId, StudioPoints> {
     return { picture, price, total: picture + price };
   };
   return { a: tally('a'), b: state.mode === 'quick' ? { picture: 0, price: 0, total: 0 } : tally('b') };
+}
+
+/** The final-vote picks that still count: a pick for someone no longer in the final drops out. */
+export function finalPicks(state: GameState): Partial<Record<PlayerId, string>> {
+  const finalists = effectiveFinalists(state);
+  const out: Partial<Record<PlayerId, string>> = {};
+  for (const p of ['a', 'b'] as const) {
+    const id = state.finalPicks[p];
+    if (id && finalists.includes(id)) out[p] = id;
+  }
+  return out;
+}
+
+export function finalVerdict(state: GameState): FinalVerdict | undefined {
+  if (state.mode !== 'two_person') return undefined;
+  const { a, b } = studioPoints(state);
+  const picks = finalPicks(state);
+  return settleFinal([picks.a, picks.b], [a.total, b.total]);
 }
 
 export const phaseHref: Record<Phase, string> = {

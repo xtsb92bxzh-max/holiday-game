@@ -109,7 +109,17 @@ const shots = process.env.SCREENSHOTS;
 
   await page.getByRole('link', { name: 'To the grand final' }).click();
   await page.waitForURL('**/final');
-  await page.getByRole('button', { name: 'Choose as our winner' }).first().click();
+  // The final vote: Ali picks in secret, then Sam. Different picks make a split.
+  const vote = page.locator('section[aria-labelledby=final-vote]');
+  await vote.getByText('Ali, your winner.').waitFor();
+  await vote.getByRole('button').nth(0).click();
+  await vote.getByText('Pass the phone.').waitFor();
+  await vote.getByRole('button').nth(1).click();
+  await vote.getByText(/Controversy in the studio/).waitFor();
+  // The studio-points leader settles it; on level points, you choose by hand.
+  const casting = vote.getByRole('button', { name: /has the casting vote/ });
+  if (await casting.count()) await casting.click();
+  else await page.getByRole('button', { name: 'Choose as our winner' }).first().click();
   await page.getByText('Congratulations. You have won the right to buy two plane tickets.').waitFor();
   await check('10-final');
 

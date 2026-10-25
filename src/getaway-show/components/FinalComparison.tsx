@@ -14,6 +14,7 @@ import { costBreakdown } from '../lib/cost';
 import { effectiveFinalists, MAX_FINALISTS, phaseHref, rankedShortlist, resultsVisible } from '../lib/state';
 import { comparisonText, shortlistText, verdictFor } from '../lib/summary';
 import { ProgressControls, Shell } from './Chrome';
+import FinalVote from './FinalVote';
 import { useShow, useVisit } from './ShowProvider';
 import { btn, DestinationPhoto, EvidenceStatus, HostLine, PriceBreakdown, RoundHeading, SourceStatus, TripFacts, TripLinks, VariantPicker } from './ui';
 
@@ -303,6 +304,10 @@ export default function FinalComparison() {
             </label>
           )}
         </section>
+
+        {state.mode === 'two_person' && finalists.length >= 2 && !(state.winnerDestinationId && finalists.includes(state.winnerDestinationId)) && (
+          <FinalVote finalists={finalists} />
+        )}
 
         {finalists.length === 0 ? (
           <p className="rounded-3xl border border-dashed border-gb-paper/30 p-6 text-center text-gb-paper/85">

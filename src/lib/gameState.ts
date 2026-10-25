@@ -1,4 +1,5 @@
 import { mainCast, mysteryCast } from './catalogue';
+import { settleFinal, type FinalVerdict } from './finalVote';
 import { isSeed, seededShuffle } from './shuffle';
 import type { Decision, Destination } from './types';
 
@@ -25,6 +26,8 @@ export type GameState = {
   guesses: Record<string, GuessRecord>;
   decisions: Record<string, Decision>;
   winner: string | null;
+  /** Each contestant's secret pick in the final vote. A pick only counts while that prize is kept. */
+  finalPicks: Pair<string | null>;
   contestants: [string, string];
   sound: boolean;
   reduceMotion: boolean | null; // null = follow the device setting
@@ -43,6 +46,7 @@ export const initialState: GameState = {
   guesses: {},
   decisions: {},
   winner: null,
+  finalPicks: [null, null],
   contestants: ['Contestant One', 'Contestant Two'],
   sound: false,
   reduceMotion: null,
@@ -59,6 +63,8 @@ export type Action =
   | { type: 'reveal'; destinationId: string; itineraryId: string; points: Pair<number> }
   | { type: 'decide'; destinationId: string; decision: Decision | null }
   | { type: 'setWinner'; destinationId: string | null }
+  | { type: 'finalPick'; contestant: 0 | 1; destinationId: string }
+  | { type: 'finalVoteAgain' }
   | { type: 'renameContestant'; index: 0 | 1; name: string }
   | { type: 'toggleSound' }
   | { type: 'setReduceMotion'; value: boolean | null }
@@ -120,6 +126,19 @@ export function reducer(state: GameState, action: Action): GameState {
     }
     case 'setWinner':
       return { ...state, winner: action.destinationId };
+    case 'finalPick': {
+      const picks = finalPicks(state);
+      const who = action.contestant;
+      // Contestant Two picks second, so Contestant One's pick is never on screen for them.
+      if (state.decisions[action.destinationId] !== 'keep' || picks[who] || (who === 1 && !picks[0])) return state;
+      const next: Pair<string | null> = [...picks];
+      next[who] = action.destinationId;
+      const settled = { ...state, finalPicks: next };
+      const v = finalVerdict(settled);
+      return v?.kind === 'agreed' ? { ...settled, winner: v.id } : settled;
+    }
+    case 'finalVoteAgain':
+      return { ...state, finalPicks: [null, null] };
     case 'renameContestant': {
       const contestants: [string, string] = [...state.contestants];
       contestants[action.index] = action.name.slice(0, 24);
@@ -155,6 +174,16 @@ export function mysteryLineup(state: GameState): Destination[] {
 export function currentGuess(state: GameState, destinationId: string, itineraryId: string): GuessRecord | undefined {
   const g = state.guesses[destinationId];
   return g && g.itineraryId === itineraryId ? g : undefined;
+}
+
+/** The final-vote picks that still count: a pick for a prize no longer kept drops out. */
+export function finalPicks(state: GameState): Pair<string | null> {
+  return state.finalPicks.map((id) => (id && state.decisions[id] === 'keep' ? id : null)) as Pair<string | null>;
+}
+
+export function finalVerdict(state: GameState): FinalVerdict | undefined {
+  const [a, b] = finalPicks(state);
+  return settleFinal([a ?? undefined, b ?? undefined], scoreFor(state));
 }
 
 /** Points so far, in contestant order. */
@@ -207,6 +236,10 @@ export function loadState(storage: Pick<Storage, 'getItem'> | undefined): GameSt
       ...rest,
       contestants,
       guesses: migrateGuesses(parsed.guesses, contestants),
+      finalPicks:
+        Array.isArray(parsed.finalPicks) && parsed.finalPicks.length === 2
+          ? (parsed.finalPicks.map((id: unknown) => (typeof id === 'string' ? id : null)) as Pair<string | null>)
+          : [null, null],
       seed: isSeed(parsed.seed) ? parsed.seed : null,
     };
   } catch {

@@ -74,11 +74,17 @@ To add a destination, add a mapping in `DESTINATION_IDS` in `scripts/import-holi
 
 Both contestants guess every priced prize. Each types a masked guess for two and locks it in, then the other takes the phone. Either can be skipped, and the price can be revealed at any point.
 
-Points scale with the price: within 5% scores 10, within 10% scores 6 and within 20% scores 3. The closest guess that does not go over earns 2 more, shared on a tie. Points are entertainment only.
+Points scale with the price: within 5% scores 10, within 10% scores 6 and within 20% scores 3. The closest of those scoring guesses that does not go over earns 2 more, shared on a tie. A guess outside 20% never earns the bonus. Points are entertainment only.
 
 On a phone, the reasons to go, the caution and the weather fold away until the price is revealed. You can open them at any time.
 
 Saves from the one-guess version keep their revealed guesses and points. An unrevealed guess from such a save is dropped, as it was never locked in.
+
+### The January Getaway final vote
+
+With two or more prizes kept, the Grand Final opens with a final vote. Contestant One crowns a kept prize in secret, then passes the phone to Contestant Two. If you agree, that prize wins. If you split, whoever leads on points has the casting vote. On level points nobody does, and you crown a winner by hand. A pick drops out if its prize stops being kept. Vote again clears both picks.
+
+Points never rank the holidays. They only decide who breaks a split. The Getaway Show final works the same way, using studio points.
 
 ### Photos
 
@@ -162,7 +168,7 @@ The brief is in `docs/GETAWAY_SHOW_BUILD_BRIEF.md`. It is broadcast on GBC, the 
 5. Round 3, The Holiday Bullseye. Six board segments, picked by button or by Throw the dart. Each pick brings on one or two destinations not yet shown, drawn at random, or says All prizes claimed. Wildcards can be added to the ballot with Total unknown showing. More destinations lists everyone else.
 6. Round 4, The Nation Has Voted. Traveller A votes Yes, Maybe or No, locks in and passes the phone. Traveller B votes without A's votes anywhere on screen. The results stay sealed until Reveal the results.
 7. Results: The public have spoken (Yes + Yes), A grower, not a shower (Yes + Maybe, Maybe + Maybe), Controversy in the studio (Yes or Maybe against No), Did not make it past the auditions (No + No) and Not voted. A missing vote is never a No. Either ballot can be edited privately.
-8. Grand final, Here's What You Could Have Flown. Up to three finalists side by side, ranked by votes. You can reorder by cheapest, simplest journey, most time there, winter escape or cafés and culture; anything that cannot be compared is labelled. You choose the winner, which produces a printable certificate. Print, Copy comparison and Copy the shortlist all work offline.
+8. Grand final, Here's What You Could Have Flown. Up to three finalists side by side, ranked by votes. You can reorder by cheapest, simplest journey, most time there, winter escape or cafés and culture; anything that cannot be compared is labelled. In the two-person edition, each of you picks a winner in secret, A first. Agreement crowns it. A split goes to whoever leads on studio points; on level points, you choose by hand. The quick edition chooses directly. The winner gets a printable certificate. Print, Copy comparison and Copy the shortlist all work offline.
 
 The quick edition has one shared ballot and gives Favourites, Maybes and Passes. It never calls anything a match. It also has one shared buzz per picture and one shared call per duel.
 

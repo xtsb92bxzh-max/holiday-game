@@ -126,6 +126,10 @@ export function sanitise(raw: unknown): GameState | null {
     finalistsCustomised: raw.finalistsCustomised === true,
     finalistDestinationIds: ids(raw.finalistDestinationIds, isShowable).slice(0, MAX_FINALISTS),
     ...(typeof raw.winnerDestinationId === 'string' && isShowable(raw.winnerDestinationId) ? { winnerDestinationId: raw.winnerDestinationId } : {}),
+    finalPicks:
+      mode === 'two_person' && isObj(raw.finalPicks)
+        ? record(raw.finalPicks, (k, val) => ((k === 'a' || k === 'b') && typeof val === 'string' && isShowable(val) ? val : undefined))
+        : {},
     soundEnabled: raw.soundEnabled === true,
     reduceMotion: typeof raw.reduceMotion === 'boolean' ? raw.reduceMotion : null,
   };
