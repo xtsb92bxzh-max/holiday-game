@@ -12,6 +12,7 @@ import {
   segmentPool,
   segmentsOf,
   selectedVariant,
+  regionOf,
   showDestinationIds,
   variantsFor,
 } from '../src/getaway-show/lib/cast';
@@ -153,6 +154,23 @@ test('round 1: a right buzz scores a point per covered tile and ends the picture
   assert.equal(studioPoints(s).a.picture, 0);
   assert.equal(reducer(s, { type: 'buzz', destinationId: id, player: 'a', guessId: id }), s, 'no buzzing after the reveal');
   assert.equal(reducer(s, { type: 'showMore', destinationId: id }), s, 'no flipping after the reveal');
+});
+
+test('round 1: the wrong answers come from the same part of Europe', () => {
+  for (const id of showDestinationIds) {
+    const region = regionOf(id);
+    assert.ok(region, `${id} (${destinationById[id].country}) needs a region in show.ts`);
+    assert.ok(showDestinationIds.filter((x) => regionOf(x) === region).length >= 4, `${region} needs at least four destinations`);
+  }
+  for (const seed of [null, 1, 2, 3]) {
+    const s = { ...initialState, seed };
+    for (const id of featuredIds) {
+      const opts = pictureOptions(s, id);
+      assert.equal(new Set(opts).size, 4);
+      assert.ok(opts.includes(id));
+      for (const o of opts) assert.equal(regionOf(o), regionOf(id), `${id}: ${o} is from another region`);
+    }
+  }
 });
 
 test('round 1: a wrong buzz locks that traveller out and the other can steal', () => {

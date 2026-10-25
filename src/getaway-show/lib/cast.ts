@@ -4,7 +4,7 @@ import { isEligibleTrip, nightsBetween } from '../../lib/dates';
 import { seededShuffle } from '../../lib/shuffle';
 import type { Destination, Itinerary } from '../../lib/types';
 import { contestants, hasClues } from '../data/contestants';
-import { boardSegments, boardTags, broadcastGroups, CHEAP_CEILING_GBP, priceLadder, type BoardSegmentId } from '../data/show';
+import { boardSegments, boardTags, broadcastGroups, CHEAP_CEILING_GBP, priceLadder, regions, type BoardSegmentId } from '../data/show';
 
 /**
  * A trip can be on the show when it fits the travel window and has
@@ -63,6 +63,14 @@ export const featuredGroups = broadcastGroups
 export const featuredIds: string[] = featuredGroups.flatMap((g) => g.cast);
 const featured = new Set(featuredIds);
 export const isFeatured = (id: string) => featured.has(id);
+
+const regionByCountry = new Map(Object.entries(regions).flatMap(([r, countries]) => countries.map((c) => [c, r] as const)));
+
+/** The part of Europe a destination is in, for Round 1's wrong answers. */
+export function regionOf(destinationId: string): string | undefined {
+  const d = destinationById[destinationId];
+  return d && regionByCountry.get(d.country);
+}
 
 export function groupOf(destinationId: string) {
   return featuredGroups.find((g) => g.cast.includes(destinationId));

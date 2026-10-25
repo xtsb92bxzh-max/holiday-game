@@ -1,5 +1,5 @@
 import { isSeed, seededShuffle } from '../../lib/shuffle';
-import { duelAnswer, duelItinerary, featuredIds, groupOf, isFeatured, isShowable, ladderIds, showDestinationIds, variantsFor, type DuelAnswer } from './cast';
+import { duelAnswer, duelItinerary, featuredIds, isFeatured, isShowable, ladderIds, regionOf, showDestinationIds, variantsFor, type DuelAnswer } from './cast';
 import { groupQuick, groupTwoPerson, type Vote } from './matching';
 
 export type { Vote };
@@ -372,17 +372,17 @@ function hash(s: string): number {
 }
 
 /**
- * The four answers offered for a Round 1 picture: the real city, one decoy from
- * the same broadcast group where there is one, and two from the rest of the show.
- * Fixed for a given show, so a reload offers the same four.
+ * The four answers offered for a Round 1 picture: the real city and three
+ * wrong ones from the same part of Europe, topped up from the rest of the
+ * show if a region runs short. Fixed for a given show, so a reload offers the same four.
  */
 export function pictureOptions(state: GameState, id: string): string[] {
   const rank = (x: string) => hash(`${state.seed ?? 0}:${id}:${x}`);
-  const byRank = (a: string, b: string) => rank(a) - rank(b);
-  const sibling = (groupOf(id)?.cast ?? []).filter((x) => x !== id && isShowable(x)).sort(byRank)[0];
-  const rest = showDestinationIds.filter((x) => x !== id && x !== sibling).sort(byRank);
-  const decoys = [...(sibling ? [sibling] : []), ...rest].slice(0, 3);
-  return [id, ...decoys].sort(byRank);
+  const others = showDestinationIds.filter((x) => x !== id).sort((a, b) => rank(a) - rank(b));
+  const region = regionOf(id);
+  const near = others.filter((x) => region != null && regionOf(x) === region);
+  const decoys = [...near, ...others.filter((x) => !near.includes(x))].slice(0, 3);
+  return [id, ...decoys].sort((a, b) => rank(a) - rank(b));
 }
 
 /** Whether a duel has been settled: skipped, or everyone has called. */

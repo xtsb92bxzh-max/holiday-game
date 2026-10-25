@@ -54,6 +54,20 @@ export const boardSegments: BoardSegment[] = [
   { id: 'wildcard', label: 'The curious wildcard', blurb: 'Flights timetabled, but no fare found yet.' },
 ];
 
+/**
+ * Round 1's wrong answers come from the same part of Europe as the right one,
+ * so a regional clue ("Central Europe", "The Baltics") never settles the guess.
+ * Keyed by the country as written in destinations.ts. A test checks every show
+ * destination has a region with at least four members.
+ */
+export const regions: Record<string, string[]> = {
+  central: ['Poland', 'Czech Republic', 'Germany'],
+  north: ['Lithuania', 'Estonia', 'Denmark', 'Finland'],
+  west: ['France', 'Belgium', 'Netherlands', 'Luxembourg', 'Switzerland'],
+  south: ['Spain', 'Portugal', 'Italy'],
+  farSouth: ['Spain (Canary Islands)', 'Cyprus', 'Turkey'],
+};
+
 /** A priced total above this is not "cheap as chips", however generous the host feels. */
 export const CHEAP_CEILING_GBP = 560;
 
