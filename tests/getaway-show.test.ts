@@ -32,6 +32,8 @@ import {
   reducer,
   resultsVisible,
   studioPoints,
+  pictureOptions,
+  duelDone,
   type Action,
   type GameState,
   type Vote,
@@ -135,14 +137,52 @@ test('5. one destination is one contestant: Kaunas, Paris and Kraków variants n
   assert.equal(ballotIds(s).length, new Set(ballotIds(s)).size);
 });
 
-test('studio points depend on how much picture was showing, and are recorded only after a reveal', () => {
+test('round 1: a right buzz scores a point per covered tile and ends the picture', () => {
   const id = featuredIds[0];
-  let s = run([{ type: 'recordGuess', destinationId: id, guessed: true }]);
-  assert.equal(studioPoints(s).picture, 0, 'no guess before reveal');
-  s = run([{ type: 'showMore', destinationId: id }, { type: 'revealIdentity', destinationId: id }, { type: 'recordGuess', destinationId: id, guessed: true }]);
-  assert.equal(studioPoints(s).picture, 2);
-  s = run([{ type: 'showMore', destinationId: id }, { type: 'showMore', destinationId: id }, { type: 'showMore', destinationId: id }], s);
-  assert.equal(s.revealSteps[id], 2, 'steps cap at 2');
+  const opts = pictureOptions(initialState, id);
+  assert.equal(opts.length, 4);
+  assert.equal(new Set(opts).size, 4);
+  assert.ok(opts.includes(id));
+  assert.deepEqual(pictureOptions(initialState, id), opts, 'the same four every time');
+
+  let s = run([{ type: 'showMore', destinationId: id }, { type: 'showMore', destinationId: id }]);
+  assert.equal(s.tilesOpen[id], 2, 'one tile per flip');
+  s = reducer(s, { type: 'buzz', destinationId: id, player: 'b', guessId: id });
+  assert.equal(s.identityRevealed[id], true);
+  assert.equal(studioPoints(s).b.picture, 7);
+  assert.equal(studioPoints(s).a.picture, 0);
+  assert.equal(reducer(s, { type: 'buzz', destinationId: id, player: 'a', guessId: id }), s, 'no buzzing after the reveal');
+  assert.equal(reducer(s, { type: 'showMore', destinationId: id }), s, 'no flipping after the reveal');
+});
+
+test('round 1: a wrong buzz locks that traveller out and the other can steal', () => {
+  const id = featuredIds[1];
+  const wrong = pictureOptions(initialState, id).find((o) => o !== id)!;
+  let s = run([{ type: 'buzz', destinationId: id, player: 'a', guessId: wrong }]);
+  assert.equal(s.identityRevealed[id], undefined, 'still hidden for the steal');
+  assert.equal(reducer(s, { type: 'buzz', destinationId: id, player: 'a', guessId: id }), s, 'one buzz each');
+  s = run([{ type: 'showMore', destinationId: id }, { type: 'buzz', destinationId: id, player: 'b', guessId: id }], s);
+  assert.equal(studioPoints(s).b.picture, 8);
+  // Both wrong: the picture is revealed, nobody scores.
+  const t = run([
+    { type: 'buzz', destinationId: id, player: 'a', guessId: wrong },
+    { type: 'buzz', destinationId: id, player: 'b', guessId: wrong },
+  ]);
+  assert.equal(t.identityRevealed[id], true);
+  assert.equal(studioPoints(t).a.total + studioPoints(t).b.total, 0);
+  // Only offered answers count, and tiles stop one short of the full picture.
+  assert.equal(reducer(initialState, { type: 'buzz', destinationId: id, player: 'a', guessId: 'not-a-city' }), initialState);
+  const flipped = run(Array.from({ length: 20 }, () => ({ type: 'showMore', destinationId: id }) as Action));
+  assert.equal(flipped.tilesOpen[id], 8);
+});
+
+test('round 1: the quick edition has one guess per picture', () => {
+  const id = featuredIds[2];
+  const wrong = pictureOptions(initialState, id).find((o) => o !== id)!;
+  const quick = reducer(initialState, { type: 'setMode', mode: 'quick' });
+  assert.equal(reducer(quick, { type: 'buzz', destinationId: id, player: 'b', guessId: id }), quick, 'no Traveller B');
+  const s = reducer(quick, { type: 'buzz', destinationId: id, player: 'a', guessId: wrong });
+  assert.equal(s.identityRevealed[id], true);
 });
 
 // ───────────── Round 2 ─────────────
@@ -167,13 +207,12 @@ test('4. every duel compares two distinct priced destinations on their own trips
 test('a duel never plays an unpriced trip, and changing dates resets that duel but keeps the votes', () => {
   // Kaunas is in duels 2 and 3. Answer them, vote, then switch Kaunas dates.
   let s = run([
-    { type: 'answerDuel', index: 1, guess: 'lower' },
-    { type: 'answerDuel', index: 2, guess: 'higher' },
-    { type: 'answerDuel', index: 0, guess: 'higher' },
+    { type: 'skipDuel', index: 1 },
+    { type: 'skipDuel', index: 2 },
+    { type: 'skipDuel', index: 0 },
     { type: 'vote', destinationId: 'kaunas', vote: 'yes' },
   ]);
-  assert.equal(duelRecord(s, 1)?.correct, true);
-  assert.equal(duelRecord(s, 2)?.correct, true);
+  assert.ok(duelRecord(s, 1) && duelRecord(s, 2));
   s = reducer(s, { type: 'chooseItinerary', destinationId: 'kaunas', itineraryId: 'EU004' });
   assert.equal(duelRecord(s, 1), undefined, 'duel with Kaunas reset');
   assert.equal(duelRecord(s, 2), undefined, 'duel with Kaunas reset');
@@ -189,12 +228,58 @@ test('a duel never plays an unpriced trip, and changing dates resets that duel b
   assert.ok(hasPrice(last.right));
 });
 
-test('answers cannot be changed once given; "show both prices" scores nothing', () => {
-  let s = run([{ type: 'answerDuel', index: 0, guess: 'skip' }]);
-  assert.equal(duelRecord(s, 0)?.correct, null);
-  s = reducer(s, { type: 'answerDuel', index: 0, guess: 'higher' });
-  assert.equal(duelRecord(s, 0)?.guess, 'skip');
-  assert.equal(studioPoints(s).price, 0);
+test('round 2: each traveller calls in secret, A first, and right calls score', () => {
+  const pair = duelPair(initialState, 0)!;
+  const right = pair.answer === 'lower' ? 'lower' : 'higher';
+  const wrong = right === 'higher' ? 'lower' : 'higher';
+  let s = reducer(initialState, { type: 'callDuel', index: 0, player: 'b', call: right });
+  assert.equal(s, initialState, 'B never calls first');
+  s = run([{ type: 'callDuel', index: 0, player: 'a', call: wrong, poundGuess: 412.4 }]);
+  assert.equal(duelDone(s, duelRecord(s, 0)!), false, 'waiting for B');
+  assert.equal(studioPoints(s).a.price, 0, 'nothing scores until both have called');
+  assert.equal(reducer(s, { type: 'callDuel', index: 0, player: 'a', call: right }), s, 'a call cannot change');
+  s = reducer(s, { type: 'callDuel', index: 0, player: 'b', call: right });
+  assert.equal(duelDone(s, duelRecord(s, 0)!), true);
+  assert.deepEqual([studioPoints(s).a.price, studioPoints(s).b.price], [0, 3]);
+  assert.equal(duelRecord(s, 0)?.poundGuess, 412);
+  assert.equal(reducer(s, { type: 'skipDuel', index: 0 }), s, 'a settled duel stays settled');
+});
+
+test('round 2: "show both prices" settles the duel and scores nothing', () => {
+  let s = run([{ type: 'callDuel', index: 0, player: 'a', call: 'higher' }, { type: 'skipDuel', index: 0 }]);
+  assert.equal(duelDone(s, duelRecord(s, 0)!), true);
+  s = reducer(s, { type: 'callDuel', index: 0, player: 'b', call: 'higher' });
+  assert.equal(duelRecord(s, 0)?.calls.b, undefined);
+  assert.equal(studioPoints(s).a.price + studioPoints(s).b.price, 0);
+  // The quick edition settles on one shared call.
+  const q = run([{ type: 'setMode', mode: 'quick' }, { type: 'callDuel', index: 0, player: 'a', call: 'higher' }]);
+  assert.equal(duelDone(q, duelRecord(q, 0)!), true);
+});
+
+test('saves from before the buzzers and secret calls load cleanly', () => {
+  const [p0, p1] = [duelPair(initialState, 0)!, duelPair(initialState, 1)!];
+  const id = featuredIds[0];
+  const { tilesOpen: _t, buzzes: _b, ...before } = initialState;
+  const old = {
+    ...before,
+    revealSteps: { [id]: 2 },
+    identityRevealed: { [id]: true },
+    pictureGuessResults: { [id]: { guessed: true, atStep: 1 } },
+    priceDuelHistory: [
+      { index: 0, leftItineraryId: p0.left.id, rightItineraryId: p0.right.id, guess: p0.answer === 'lower' ? 'lower' : 'higher', correct: true },
+      { index: 1, leftItineraryId: p1.left.id, rightItineraryId: p1.right.id, guess: 'skip', correct: null, poundGuess: 500 },
+    ],
+  } as unknown;
+  const s = sanitise(JSON.parse(JSON.stringify(old)))!;
+  assert.equal(s.tilesOpen[id], 6, 'two old steps were six tiles');
+  assert.deepEqual(s.buzzes, {}, 'the old honour-system guesses named nobody');
+  assert.equal(s.identityRevealed[id], true);
+  assert.deepEqual([studioPoints(s).a.price, studioPoints(s).b.price], [3, 3], 'a shared right call counts for both');
+  assert.equal(duelRecord(s, 1)?.skipped, true);
+  assert.equal(duelRecord(s, 1)?.poundGuess, 500);
+  // And the new shape survives a round trip.
+  const t = run([{ type: 'buzz', destinationId: id, player: 'a', guessId: id }, { type: 'callDuel', index: 0, player: 'a', call: 'higher' }]);
+  assert.deepEqual(sanitise(JSON.parse(JSON.stringify(t))), t);
 });
 
 // ───────────── Round 3 ─────────────

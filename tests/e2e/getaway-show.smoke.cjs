@@ -43,26 +43,37 @@ const shots = process.env.SCREENSHOTS;
   await check('02-audience');
   await page.getByRole('button', { name: 'Start the show' }).click();
 
-  // Round 1: the city name is not readable before the reveal.
+  // Round 1: the city name is not readable before anyone buzzes in.
   await page.waitForURL('**/catch-a-flight');
   await page.getByRole('button', { name: 'Show me a bit more' }).click();
+  await page.getByText('Worth 8 points').waitFor();
   const before = await page.locator('main').innerText();
   const alts = await page.locator('main img').evaluateAll((imgs) => imgs.map((i) => i.alt).join(' '));
+  // Ali buzzes in and gets four answers to choose from.
+  await page.getByRole('button', { name: 'Ali', exact: true }).click();
+  const answers = page.locator('fieldset .grid button');
+  assert.equal(await answers.count(), 4, 'four answers on offer');
   await check('03-round1-clues');
-  await page.getByRole('button', { name: 'Reveal the city' }).click();
+  await answers.first().click();
+  // A wrong answer leaves the picture up for Sam to steal; give up and reveal instead.
+  const giveUp = page.getByRole('button', { name: 'Reveal the city' });
+  if (await giveUp.count()) await giveUp.click();
   // The running order is shuffled, so read the city from the reveal and check it was hidden before.
   const city = (await page.locator('#clue-heading').innerText()).trim();
   assert.ok(city, 'the reveal names a city');
   assert.ok(!before.includes(city), `${city} visible before reveal`);
   assert.ok(!alts.includes(city), `alt text gives ${city} away`);
-  await page.getByRole('button', { name: 'We got it' }).click();
+  await page.getByText('How it went').waitFor();
   await page.getByRole('button', { name: 'Add to my possibles' }).click();
   await check('04-round1-revealed');
 
-  // Round 2
+  // Round 2: Ali calls first, then Sam, and only then is the price shown.
   await page.goto(`${base}/getaway-show/higher-or-lower`);
   await page.getByRole('button', { name: 'Higher' }).click();
-  await page.getByText('Correct!').waitFor();
+  await page.getByText('Ali: called').waitFor();
+  assert.equal(await page.getByText(/^It was /).count(), 0, 'no result until Sam has called');
+  await page.getByRole('button', { name: 'Lower' }).click();
+  await page.getByText(/^It was /).waitFor();
   await check('05-round2-duel');
 
   // Round 3

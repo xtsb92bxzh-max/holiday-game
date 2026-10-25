@@ -18,12 +18,11 @@ import {
   phaseHref,
   rankedShortlist,
   resultsVisible,
-  studioPoints,
 } from '../lib/state';
 import { shortlistText } from '../lib/summary';
 import { ProgressControls, Shell } from './Chrome';
 import { useShow, useVisit } from './ShowProvider';
-import { btn, HostLine, NoInfluence, RoundHeading, SourceStatus } from './ui';
+import { btn, HostLine, RoundHeading, SourceStatus, StudioScores } from './ui';
 
 const chip: Record<Vote, string> = {
   yes: 'bg-gb-teal text-gb-paper',
@@ -145,7 +144,6 @@ export default function ResultsStudio() {
 
   const g = groups(state);
   const shortlist = rankedShortlist(state);
-  const points = studioPoints(state);
   const doCopy = async () => {
     try {
       await navigator.clipboard.writeText(shortlistText(state));
@@ -183,9 +181,9 @@ export default function ResultsStudio() {
                 : 'No outright winner. Some strong maybes, and a little light controversy.'}
           </HostLine>
           <p className="text-sm text-gb-paper/80">
-            Ranked by your votes alone: mutual Yes first, then the strongest maybes, featured before added wildcards. Studio points ({points.total}){' '}
-            <NoInfluence className="align-middle" />
+            Ranked by your votes alone: mutual Yes first, then the strongest maybes, featured before added wildcards.
           </p>
+          <StudioScores part="total" className="text-gb-paper/80" />
         </RoundHeading>
 
         {shortlist.length > MAX_FINALISTS && (

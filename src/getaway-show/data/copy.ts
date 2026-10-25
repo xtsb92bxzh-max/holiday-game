@@ -14,14 +14,14 @@ export const copy = {
 
   round1: {
     title: 'Catch a Flight',
-    intro: 'Behind the tiles is a real photograph. Shout out a guess. Nobody is marking you.',
+    intro: 'Behind the tiles is a real photograph. Buzz in when you know it. Every tile still covered is a point.',
     more: 'Show me a bit more',
     reveal: 'Reveal the city',
   },
   round2: {
     title: 'Play Your Flights Right',
-    intro: 'Is the next holiday higher or lower? Every total is for two, with the source’s bags and transfers already in.',
-    right: 'A completely pointless point, but beautifully earned.',
+    intro: 'Is the next holiday higher or lower? Each of you calls it in secret. Every total is for two, with the source’s bags and transfers already in.',
+    right: 'Three completely pointless points each, but beautifully earned.',
     wrong: 'A difficult moment for the nation’s amateur travel economists.',
     higher: 'The finance department is looking nervous.',
     lower: 'A remarkable saving, provided that flight still exists.',
