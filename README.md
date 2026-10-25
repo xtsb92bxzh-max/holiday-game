@@ -70,6 +70,16 @@ The order of `main` entries is the order of the belt. A destination with several
 
 To add a destination, add a mapping in `DESTINATION_IDS` in `scripts/import-holiday-data.ts`, add an entry to `destinations.ts`, and rerun the importer.
 
+### The January Getaway price round
+
+Both contestants guess every priced prize. Each types a masked guess for two and locks it in, then the other takes the phone. Either can be skipped, and the price can be revealed at any point.
+
+Points scale with the price: within 5% scores 10, within 10% scores 6 and within 20% scores 3. The closest guess that does not go over earns 2 more, shared on a tie. Points are entertainment only.
+
+On a phone, the reasons to go, the caution and the weather fold away until the price is revealed. You can open them at any time.
+
+Saves from the one-guess version keep their revealed guesses and points. An unrevealed guess from such a save is dropped, as it was never locked in.
+
 ### Photos
 
 Photos come from Wikimedia Commons under CC BY, CC BY-SA or CC0 licences. Credits are shown on each photo and listed in the site footer. If a photo is missing or fails to load, the card shows a designed poster-style fallback instead.

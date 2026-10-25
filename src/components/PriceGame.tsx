@@ -1,63 +1,97 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Minus, Plus, HelpCircle } from 'lucide-react';
+import { HelpCircle, Lock } from 'lucide-react';
 import type { Itinerary } from '@/lib/types';
-import { guessRange, hasPrice } from '@/lib/catalogue';
-import { closenessPoints, formatGBP, roundForReveal } from '@/lib/pricing';
-import { currentGuess } from '@/lib/gameState';
+import { hasPrice } from '@/lib/catalogue';
+import { duelPoints, formatGBP, roundForReveal, UNDER_BONUS } from '@/lib/pricing';
+import { currentGuess, type Pair } from '@/lib/gameState';
 import { useGame } from './GameContext';
 import RollingNumber from './RollingNumber';
 import Confetti from './Confetti';
 import { PriceBreakdown, ProvenanceLine } from './TripDetails';
 import { btn } from './ui';
 
-const range = guessRange();
-
-function verdict(guess: number | null, actual: number): string {
-  if (guess == null) return 'No guess at all? Admirably cautious.';
+function verdict(guess: number, actual: number): string {
   const diff = guess - actual;
-  if (Math.abs(diff) <= 20) return 'An almost suspiciously respectable estimate.';
-  if (Math.abs(diff) <= 60) return diff > 0 ? 'Close. Slightly generous, but close.' : 'Close. A touch optimistic, but close.';
+  const ratio = Math.abs(diff) / actual;
+  if (ratio <= 0.05) return 'An almost suspiciously respectable estimate.';
+  if (ratio <= 0.2) return diff > 0 ? 'Close. Slightly generous, but close.' : 'Close. A touch optimistic, but close.';
   return diff > 0
-    ? 'You’ve just invented a very generous hotel minibar allowance.'
-    : 'Somebody has been reading package-holiday brochures from 1994.';
+    ? 'Has invented a very generous hotel minibar allowance.'
+    : 'Has been reading package-holiday brochures from 1994.';
+}
+
+function GuessInput({ label, onLock }: { label: string; onLock: (n: number) => void }) {
+  const [text, setText] = useState('');
+  const n = Number(text.replace(/[£,\s]/g, ''));
+  const ok = text.trim() !== '' && Number.isFinite(n) && n > 0;
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (ok) onLock(n);
+      }}
+    >
+      <label className="block text-sm font-semibold">
+        {label}
+        <span className="mt-1 flex items-center rounded-xl border-2 border-gold bg-navy px-3">
+          <span aria-hidden className="font-display text-xl text-gold">
+            £
+          </span>
+          {/* Masked so the other contestant can't read it over your shoulder. */}
+          <input
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={5}
+            value={text}
+            placeholder="for two"
+            onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, ''))}
+            className="h-12 w-full bg-transparent px-2 font-display text-2xl text-cream placeholder:font-sans placeholder:text-base placeholder:text-cream/40 focus:outline-none"
+          />
+        </span>
+      </label>
+      <button type="submit" className={`${btn.gold} w-full`} disabled={!ok}>
+        <Lock aria-hidden className="size-5" /> Lock it in
+      </button>
+    </form>
+  );
 }
 
 export default function PriceGame({ destinationId, it }: { destinationId: string; it: Itinerary }) {
   const { state, dispatch, reduceMotion, sfx } = useGame();
   const record = currentGuess(state, destinationId, it.id);
   const revealed = record?.revealed ?? false;
-  const guess = record?.guess ?? null;
-  const [draft, setDraft] = useState(guess == null ? '' : String(guess));
+  const guesses: Pair<number | null> = record?.guesses ?? [null, null];
+  const points: Pair<number> = record?.points ?? [0, 0];
   const [burst, setBurst] = useState(0);
   const priced = hasPrice(it);
-
-  // Reset the text box whenever the itinerary (and therefore the stored guess) changes.
-  useEffect(() => setDraft(guess == null ? '' : String(guess)), [it.id, guess]);
-
-  const sliderValue = guess ?? Math.round((range.min + range.max) / 2 / 10) * 10;
-  const setGuess = (v: number | null) => {
-    const clamped = v == null || Number.isNaN(v) ? null : Math.max(0, Math.min(9999, Math.round(v)));
-    dispatch({ type: 'setGuess', destinationId, itineraryId: it.id, guess: clamped });
-  };
+  const names = state.contestants;
+  const next = guesses.findIndex((g) => g == null) as -1 | 0 | 1;
+  const locked = guesses.filter((g) => g != null).length;
 
   const reveal = () => {
     if (!priced) {
       sfx('mystery');
-      dispatch({ type: 'reveal', destinationId, itineraryId: it.id, points: 0 });
+      dispatch({ type: 'reveal', destinationId, itineraryId: it.id, points: [0, 0] });
       return;
     }
-    const pts = guess == null ? 0 : closenessPoints(guess, it.estimatedTotalForTwoGBP);
+    const pts = duelPoints(guesses, it.estimatedTotalForTwoGBP) as Pair<number>;
     dispatch({ type: 'reveal', destinationId, itineraryId: it.id, points: pts });
     sfx('fanfare');
-    if (pts > 0) setTimeout(() => sfx('applause'), 900);
+    if (pts[0] + pts[1] > 0) setTimeout(() => sfx('applause'), 900);
     if (!reduceMotion) setBurst((b) => b + 1);
   };
 
-  const points = record?.points ?? 0;
-  const message = useMemo(() => (priced && revealed ? verdict(guess, it.estimatedTotalForTwoGBP!) : ''), [priced, revealed, guess, it]);
+  const headline = (() => {
+    if (!priced || !revealed || locked === 0) return '';
+    if (locked === 1) return `${names[guesses[0] != null ? 0 : 1]} played alone and scores ${points[guesses[0] != null ? 0 : 1]}.`;
+    if (points[0] === points[1]) return points[0] === 0 ? 'Nobody scores. The spreadsheet wins this one.' : 'A dead heat. Suspicious.';
+    return `${names[points[0] > points[1] ? 0 : 1]} takes this prize.`;
+  })();
 
   return (
     <div className="relative">
@@ -66,7 +100,9 @@ export default function PriceGame({ destinationId, it }: { destinationId: string
       <div className="rounded-2xl bg-royal p-4 text-cream shadow-[inset_0_0_0_3px_#f0b429,0_10px_30px_#0006] sm:p-6">
         <p className="text-center font-display text-sm tracking-widest text-gold">Guess the holiday price!</p>
         <p className="mt-1 text-center text-xs text-cream/75">
-          All-in estimate for two: flights, room, bags and transfers. {state.contestants[state.contestantTurn]} to guess.
+          All-in estimate for two: flights, room, bags and transfers.
+          {priced && ' Both guess in secret. Within 5% scores 10, within 10% scores 6, within 20% scores 3.'}
+          {priced && ` The closest guess that doesn’t go over gets ${UNDER_BONUS} more.`}
         </p>
 
         <div className="my-4 flex min-h-[5.5rem] items-center justify-center rounded-xl bg-black/50 px-3 py-3 shadow-[inset_0_2px_10px_#000]">
@@ -95,68 +131,73 @@ export default function PriceGame({ destinationId, it }: { destinationId: string
 
         {!revealed && priced && (
           <div className="space-y-3">
-            <label htmlFor={`guess-${destinationId}`} className="sr-only">
-              Your guess in pounds for two people
-            </label>
-            <input
-              type="range"
-              min={range.min}
-              max={range.max}
-              step={5}
-              value={sliderValue}
-              onChange={(e) => setGuess(Number(e.target.value))}
-              className="h-10 w-full accent-[#f0b429]"
-              aria-label="Guess slider"
-              aria-valuetext={guess == null ? 'No guess yet' : `£${guess}`}
-            />
-            <div className="flex items-center justify-center gap-2">
-              <button className={btn.icon} onClick={() => setGuess((guess ?? sliderValue) - 10)} aria-label="Ten pounds less">
-                <Minus className="size-5" />
-              </button>
-              <div className="flex items-center rounded-xl border-2 border-gold bg-navy px-3">
-                <span className="font-display text-xl text-gold">£</span>
-                <input
-                  id={`guess-${destinationId}`}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={draft}
-                  placeholder="Your guess"
-                  onChange={(e) => {
-                    const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
-                    setDraft(v);
-                    setGuess(v === '' ? null : Number(v));
+            <ul className="flex flex-wrap justify-center gap-2 text-sm" aria-label="Who has guessed">
+              {names.map((name, i) => (
+                <li
+                  key={i}
+                  className={`rounded-full px-3 py-1 ${guesses[i] != null ? 'bg-gold font-semibold text-ink' : 'bg-cream/10 text-cream/80'}`}
+                >
+                  {name}: {guesses[i] != null ? 'locked in' : 'thinking'}
+                </li>
+              ))}
+            </ul>
+            {next !== -1 && (
+              <>
+                <GuessInput
+                  key={`${it.id}-${next}`}
+                  label={`${names[next]}, your guess`}
+                  onLock={(n) => {
+                    dispatch({ type: 'lockGuess', destinationId, itineraryId: it.id, contestant: next, guess: n });
+                    sfx('tick');
                   }}
-                  onKeyDown={(e) => e.key === 'Enter' && reveal()}
-                  className="h-12 w-32 bg-transparent px-2 font-display text-2xl text-cream placeholder:text-base placeholder:text-cream/40 focus:outline-none"
                 />
-              </div>
-              <button className={btn.icon} onClick={() => setGuess((guess ?? sliderValue) + 10)} aria-label="Ten pounds more">
-                <Plus className="size-5" />
-              </button>
-            </div>
-            <p className="text-center text-xs text-cream/70">Higher? Lower? Has anyone checked the exchange rate?</p>
+                <p className="text-center text-xs text-cream/70">
+                  {names[next === 0 ? 1 : 0]}, look away. Has anyone checked the exchange rate?
+                </p>
+              </>
+            )}
           </div>
         )}
 
         {!revealed && (
-          <button className={`${btn.primary} mt-4 w-full text-lg`} onClick={reveal}>
-            {priced ? 'Reveal the price' : (
+          <button
+            className={`${next === -1 || !priced ? btn.primary : btn.ghost} mt-4 w-full ${next === -1 || !priced ? 'text-lg' : ''}`}
+            onClick={reveal}
+          >
+            {!priced ? (
               <>
                 <HelpCircle aria-hidden className="size-5" /> Reveal the mystery
               </>
+            ) : next === -1 ? (
+              'Reveal the price'
+            ) : locked === 0 ? (
+              'Skip the guessing and reveal'
+            ) : (
+              `Reveal without ${names[next]}’s guess`
             )}
           </button>
         )}
 
         {revealed && priced && (
-          <div className="mt-2 text-center" aria-live="polite">
-            <p className="font-serif text-lg italic text-gold">{message}</p>
-            <p className="mt-1 text-sm text-cream/80">
-              {guess != null ? <>Your guess: {formatGBP(guess)}. </> : null}
-              {record?.contestant && <>{record.contestant} scores </>}
-              <span className="scoreboard-digit">+{points}</span> points
-              <span className="text-cream/60"> (entertainment only)</span>
-            </p>
+          <div className="mt-2 space-y-2 text-center" aria-live="polite">
+            {headline && <p className="font-display text-lg tracking-wide text-gold">{headline}</p>}
+            {locked > 0 ? (
+              <ul className="space-y-1.5 text-sm">
+                {names.map((name, i) =>
+                  guesses[i] == null ? null : (
+                    <li key={i}>
+                      <span className="font-semibold">{name}</span> guessed {formatGBP(guesses[i])}
+                      {guesses[i]! > it.estimatedTotalForTwoGBP! ? ' (over)' : ''}:{' '}
+                      <span className="scoreboard-digit">+{points[i]}</span>
+                      <span className="block font-serif italic text-cream/80">{verdict(guesses[i]!, it.estimatedTotalForTwoGBP!)}</span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            ) : (
+              <p className="font-serif text-lg italic text-gold">No guesses at all? Admirably cautious.</p>
+            )}
+            <p className="text-xs text-cream/60">Points are entertainment only.</p>
           </div>
         )}
       </div>

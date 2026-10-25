@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isEligibleTrip, nightsBetween } from '../src/lib/dates';
-import { closenessPoints, estimateTotal, extrasForParty, perPerson, roundForReveal } from '../src/lib/pricing';
-import { reducer, initialState, currentGuess } from '../src/lib/gameState';
+import { closenessPoints, duelPoints, estimateTotal, extrasForParty, perPerson, roundForReveal } from '../src/lib/pricing';
+import { reducer, initialState, currentGuess, loadState, scoreFor } from '../src/lib/gameState';
 
 test('date eligibility follows the trip rules', () => {
   assert.equal(isEligibleTrip('2027-01-17', '2027-01-21'), true);
@@ -26,16 +26,54 @@ test('total for two = fare × 2 + room + baggage × 2 + transfers', () => {
   assert.equal(roundForReveal(420.89), 421);
 });
 
-test('closeness points are entertainment-only bands', () => {
-  assert.equal(closenessPoints(400, 420), 10);
-  assert.equal(closenessPoints(360, 420), 5);
-  assert.equal(closenessPoints(359, 420), 0);
-  assert.equal(closenessPoints(480, 420), 5);
+test('closeness points scale with the price', () => {
+  assert.equal(closenessPoints(400, 400), 10);
+  assert.equal(closenessPoints(420, 400), 10, 'within 5%');
+  assert.equal(closenessPoints(360, 400), 6, 'within 10%');
+  assert.equal(closenessPoints(321, 400), 3, 'within 20%');
+  assert.equal(closenessPoints(319, 400), 0);
+  assert.equal(closenessPoints(481, 400), 0);
+});
+
+test('the closest guess that does not go over earns the bonus', () => {
+  assert.deepEqual(duelPoints([390, 405], 400), [12, 10], 'under and nearer the same band: the under guess gets the bonus');
+  assert.deepEqual(duelPoints([350, 380], 400), [3 + 0, 10 + 2]);
+  assert.deepEqual(duelPoints([450, 500], 400), [3, 0], 'both over: no bonus');
+  assert.deepEqual(duelPoints([380, 380], 400), [12, 12], 'a tie shares the bonus');
+  assert.deepEqual(duelPoints([null, 390], 400), [0, 12], 'no guess scores nothing');
+});
+
+test('both contestants lock in a guess once, and points add up after the reveal', () => {
+  let s = reducer(initialState, { type: 'lockGuess', destinationId: 'kaunas', itineraryId: 'EU002', contestant: 0, guess: 380 });
+  s = reducer(s, { type: 'lockGuess', destinationId: 'kaunas', itineraryId: 'EU002', contestant: 0, guess: 999 });
+  assert.deepEqual(currentGuess(s, 'kaunas', 'EU002')?.guesses, [380, null], 'a locked guess cannot change');
+  s = reducer(s, { type: 'lockGuess', destinationId: 'kaunas', itineraryId: 'EU002', contestant: 1, guess: 450 });
+  assert.deepEqual(scoreFor(s), [0, 0], 'nothing scores before the reveal');
+  s = reducer(s, { type: 'reveal', destinationId: 'kaunas', itineraryId: 'EU002', points: [12, 3] });
+  assert.deepEqual(scoreFor(s), [12, 3]);
+  assert.equal(reducer(s, { type: 'lockGuess', destinationId: 'kaunas', itineraryId: 'EU002', contestant: 1, guess: 1 }), s);
+});
+
+test('a save from the one-guess version keeps revealed guesses and drops drafts', () => {
+  const old = {
+    ...initialState,
+    contestants: ['Ali', 'Sam'],
+    contestantTurn: 1,
+    guesses: {
+      kaunas: { itineraryId: 'EU002', guess: 380, revealed: true, points: 10, contestant: 'Sam' },
+      prague: { itineraryId: 'EU010', guess: 500, revealed: false, points: 0 },
+    },
+  };
+  const s = loadState({ getItem: () => JSON.stringify(old) })!;
+  assert.deepEqual(s.guesses.kaunas, { itineraryId: 'EU002', guesses: [null, 380], revealed: true, points: [0, 10] });
+  assert.equal(s.guesses.prague, undefined);
+  assert.equal('contestantTurn' in s, false);
+  assert.deepEqual(scoreFor(s), [0, 10]);
 });
 
 test('changing itinerary resets guess and reveal state', () => {
-  let s = reducer(initialState, { type: 'setGuess', destinationId: 'kaunas', itineraryId: 'EU002', guess: 380 });
-  s = reducer(s, { type: 'reveal', destinationId: 'kaunas', itineraryId: 'EU002', points: 10 });
+  let s = reducer(initialState, { type: 'lockGuess', destinationId: 'kaunas', itineraryId: 'EU002', contestant: 0, guess: 380 });
+  s = reducer(s, { type: 'reveal', destinationId: 'kaunas', itineraryId: 'EU002', points: [10, 0] });
   assert.equal(currentGuess(s, 'kaunas', 'EU002')?.revealed, true);
   s = reducer(s, { type: 'chooseItinerary', destinationId: 'kaunas', itineraryId: 'EU004' });
   assert.equal(currentGuess(s, 'kaunas', 'EU004'), undefined);
