@@ -12,10 +12,10 @@ import type { Itinerary } from '@/lib/types';
 import { copy } from '../data/copy';
 import { duelCount, duelItinerary, featuredIds, ladderIds } from '../lib/cast';
 import { costBreakdown } from '../lib/cost';
-import { duelPair, duelRecord, phaseHref, studioPoints, type DuelGuess } from '../lib/state';
+import { callRight, DUEL_POINTS, duelDone, duelPair, duelRecord, nameOf, phaseHref, players, type DuelCall, type DuelRecord } from '../lib/state';
 import { ProgressControls, Shell } from './Chrome';
 import { useShow, useVisit } from './ShowProvider';
-import { btn, EvidenceStatus, HostLine, NoInfluence, PriceBreakdown, RoundHeading, SourceStatus, VariantPicker } from './ui';
+import { btn, EvidenceStatus, HostLine, NoInfluence, PriceBreakdown, RoundHeading, SourceStatus, StudioScores, VariantPicker } from './ui';
 
 function Placard({ id, it, shown, reduceMotion }: { id: string; it: Itinerary; shown: boolean; reduceMotion: boolean }) {
   const d = destinationById[id];
@@ -51,17 +51,43 @@ function Placard({ id, it, shown, reduceMotion }: { id: string; it: Itinerary; s
   );
 }
 
-function ResultLine({ answer, correct, guess }: { answer: 'higher' | 'lower' | 'same'; correct: boolean | null; guess: DuelGuess }) {
+function ResultLine({ answer, rec }: { answer: 'higher' | 'lower' | 'same'; rec: DuelRecord }) {
+  const { state } = useShow();
   const reaction = answer === 'same' ? copy.round2.same : answer === 'higher' ? copy.round2.higher : copy.round2.lower;
-  const Icon = correct == null ? Equal : correct ? Check : X;
+  const who = players(state);
+  const right = who.filter((p) => callRight(answer, rec.calls[p]));
+  const quick = state.mode === 'quick';
+  const host = rec.skipped
+    ? copy.round2.skipped
+    : right.length === who.length
+      ? copy.round2.right
+      : right.length === 0
+        ? copy.round2.wrong
+        : `${nameOf(state, right[0])} takes the duel.`;
   return (
-    <div className="space-y-1 text-center">
-      <p className={`gb-display inline-flex items-center gap-2 text-2xl ${correct ? 'text-gb-gold' : correct === false ? 'text-gb-tomato' : 'text-gb-paper'}`}>
-        <Icon aria-hidden className="size-6" />
-        {guess === 'skip' ? 'Both prices shown' : correct ? 'Correct!' : 'Not this time'}
-        {guess !== 'skip' && <span className="text-base text-gb-paper/80">· it was {answer === 'same' ? 'the same' : answer}</span>}
+    <div className="space-y-2 text-center">
+      <p className="gb-display text-2xl text-gb-paper">
+        {rec.skipped ? 'Both prices shown' : `It was ${answer === 'same' ? 'the same' : answer}`}
       </p>
-      <HostLine>{guess === 'skip' ? copy.round2.skipped : correct ? copy.round2.right : copy.round2.wrong}</HostLine>
+      {!rec.skipped && (
+        <ul className="flex flex-wrap justify-center gap-2">
+          {who.map((p) => {
+            const ok = callRight(answer, rec.calls[p]);
+            const Icon = ok ? Check : X;
+            return (
+              <li
+                key={p}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold ${ok ? 'bg-gb-gold text-gb-black' : 'bg-gb-paper/10'}`}
+              >
+                <Icon aria-hidden className="size-4" />
+                {quick ? 'You' : nameOf(state, p)} said {rec.calls[p]}
+                {ok ? `: +${DUEL_POINTS}` : ''}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <HostLine>{host}</HostLine>
       <p className="font-serif text-sm italic text-gb-paper/80">{reaction}</p>
     </div>
   );
@@ -107,16 +133,22 @@ export default function HigherLowerGame() {
   const [pound, setPound] = useState('');
   const poundId = useId();
   const resultRef = useRef<HTMLDivElement>(null);
-  const points = studioPoints(state);
-  const answered = Array.from({ length: duelCount }, (_, i) => duelRecord(state, i));
+  const done = rec != null && duelDone(state, rec);
+  const answered = Array.from({ length: duelCount }, (_, i) => {
+    const r = duelRecord(state, i);
+    return r != null && duelDone(state, r);
+  });
   const allDone = answered.every(Boolean);
+  const quick = state.mode === 'quick';
+  // Traveller A calls first; Traveller B never sees A's call.
+  const caller = players(state).find((p) => !rec?.calls[p]);
 
   useEffect(() => setPound(''), [index]);
-  const wasAnswered = useRef(Boolean(rec));
+  const wasDone = useRef(done);
   useEffect(() => {
-    if (rec && !wasAnswered.current) resultRef.current?.focus();
-    wasAnswered.current = Boolean(rec);
-  }, [rec]);
+    if (done && !wasDone.current) resultRef.current?.focus();
+    wasDone.current = done;
+  }, [done]);
 
   if (duelCount === 0 || !pair) {
     return (
@@ -132,10 +164,19 @@ export default function HigherLowerGame() {
     );
   }
 
-  const answer = (guess: DuelGuess) => {
-    const n = Number(pound.replace(/[£,\s]/g, ''));
-    dispatch({ type: 'answerDuel', index, guess, poundGuess: pound.trim() && Number.isFinite(n) && n > 0 ? n : undefined });
-    sfx(guess === 'skip' ? 'tick' : guess === pair.answer || pair.answer === 'same' ? 'fanfare' : 'bin');
+  const n = Number(pound.replace(/[£,\s]/g, ''));
+  const poundGuess = pound.trim() && Number.isFinite(n) && n > 0 ? n : undefined;
+  const call = (c: DuelCall) => {
+    if (!caller) return;
+    dispatch({ type: 'callDuel', index, player: caller, call: c, poundGuess });
+    const last = caller === players(state).at(-1);
+    if (!last) return sfx('tick');
+    const calls = { ...rec?.calls, [caller]: c };
+    sfx(players(state).some((p) => callRight(pair.answer, calls[p])) ? 'fanfare' : 'bin');
+  };
+  const skip = () => {
+    dispatch({ type: 'skipDuel', index, poundGuess });
+    sfx('tick');
   };
   const right = costBreakdown(pair.right)!;
 
@@ -154,7 +195,7 @@ export default function HigherLowerGame() {
                   type="button"
                   onClick={() => dispatch({ type: 'goToDuel', index: i })}
                   aria-current={i === index ? 'step' : undefined}
-                  aria-label={`Duel ${i + 1}${r ? (r.correct ? ', correct' : r.correct === false ? ', wrong' : ', skipped') : ''}`}
+                  aria-label={`Duel ${i + 1}${r ? ', played' : ''}`}
                   className={`grid size-11 place-items-center rounded-lg gb-display text-lg ${
                     i === index ? 'bg-gb-gold text-gb-black' : r ? 'bg-gb-teal text-gb-paper' : 'border-2 border-gb-paper/25 text-gb-paper/80'
                   }`}
@@ -172,21 +213,35 @@ export default function HigherLowerGame() {
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:gap-6">
             <Placard id={pair.leftId} it={pair.left} shown reduceMotion={reduceMotion} />
-            <Placard id={pair.rightId} it={pair.right} shown={Boolean(rec)} reduceMotion={reduceMotion} />
+            <Placard id={pair.rightId} it={pair.right} shown={done} reduceMotion={reduceMotion} />
           </div>
 
-          {!rec ? (
+          {!done ? (
             <div className="space-y-3">
+              {!quick && (
+                <ul className="flex flex-wrap justify-center gap-2 text-sm" aria-label="Who has called">
+                  {players(state).map((p) => (
+                    <li key={p} className={`rounded-full px-3 py-1 ${rec?.calls[p] ? 'bg-gb-gold font-bold text-gb-black' : 'bg-gb-paper/10'}`}>
+                      {nameOf(state, p)}: {rec?.calls[p] ? 'called' : 'thinking'}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {caller && !quick && (
+                <p className="text-center font-bold">
+                  {nameOf(state, caller)}, your call. {nameOf(state, caller === 'a' ? 'b' : 'a')}, look away.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3">
-                <button type="button" className={btn.gold + ' !text-2xl'} onClick={() => answer('higher')}>
+                <button type="button" className={btn.gold + ' !text-2xl'} onClick={() => call('higher')}>
                   <ArrowUp aria-hidden className="size-6" /> Higher
                 </button>
-                <button type="button" className={btn.primary + ' !text-2xl'} onClick={() => answer('lower')}>
+                <button type="button" className={btn.primary + ' !text-2xl'} onClick={() => call('lower')}>
                   <ArrowDown aria-hidden className="size-6" /> Lower
                 </button>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <button type="button" className={btn.ghost} onClick={() => answer('skip')}>
+                <button type="button" className={btn.ghost} onClick={skip}>
                   Show both prices
                 </button>
                 <details className="w-full max-w-sm text-sm">
@@ -210,7 +265,7 @@ export default function HigherLowerGame() {
             </div>
           ) : (
             <div ref={resultRef} tabIndex={-1} className="space-y-4 outline-none" aria-live="polite">
-              <ResultLine answer={pair.answer} correct={rec.correct} guess={rec.guess} />
+              <ResultLine answer={pair.answer} rec={rec} />
               {rec.poundGuess != null && (
                 <p className="text-center text-sm">
                   You guessed {formatGBP(rec.poundGuess)}. That is {formatGBP(Math.abs(rec.poundGuess - right.totalForTwo), { pence: true })}{' '}
@@ -256,9 +311,7 @@ export default function HigherLowerGame() {
           </p>
         </section>
 
-        <p className="text-center text-sm">
-          Price points: <strong>{points.price}</strong> of {duelCount} <NoInfluence className="ml-1 align-middle" />
-        </p>
+        <StudioScores part="price" className="text-center" />
 
         {allDone && (
           <>

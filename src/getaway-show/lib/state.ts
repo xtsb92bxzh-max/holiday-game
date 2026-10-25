@@ -1,5 +1,5 @@
 import { isSeed, seededShuffle } from '../../lib/shuffle';
-import { duelAnswer, duelItinerary, featuredIds, isFeatured, isShowable, ladderIds, variantsFor } from './cast';
+import { duelAnswer, duelItinerary, featuredIds, groupOf, isFeatured, isShowable, ladderIds, showDestinationIds, variantsFor, type DuelAnswer } from './cast';
 import { groupQuick, groupTwoPerson, type Vote } from './matching';
 
 export type { Vote };
@@ -7,18 +7,31 @@ export type PlayerId = 'a' | 'b';
 export type Mode = 'two_person' | 'quick';
 export type Phase = 'intro' | 'picture_reveal' | 'higher_lower' | 'wildcard_board' | 'ballots' | 'results' | 'grand_final';
 export type Bookmark = 'possible' | 'not_for_me' | 'watching';
-export type DuelGuess = 'higher' | 'lower' | 'skip';
+export type DuelCall = 'higher' | 'lower';
 
 export type DuelRecord = {
   index: number;
   leftItineraryId: string;
   rightItineraryId: string;
-  guess: DuelGuess;
-  /** null when the players skipped straight to both prices. */
-  correct: boolean | null;
+  /** Each traveller's secret call. The quick edition has one shared call, under 'a'. */
+  calls: Partial<Record<PlayerId, DuelCall>>;
+  /** Both prices shown without waiting for the calls. Scores nothing. */
+  skipped: boolean;
   /** The optional "guess it to the pound" entry. */
   poundGuess?: number;
 };
+
+/** A traveller's one guess at a Round 1 picture, and how many tiles were open at the time. */
+export type Buzz = { guessId: string; tilesOpen: number };
+
+/** Round 1 pictures hide under nine tiles. At least one stays down until the reveal. */
+export const TILES = 9;
+/** A right answer scores one point per tile still covered. */
+export const picturePoints = (tilesOpen: number) => TILES - tilesOpen;
+/** A right price call. */
+export const DUEL_POINTS = 3;
+/** A new clue arrives with every third tile. */
+export const cluesShown = (tilesOpen: number) => Math.min(3, 1 + Math.floor(tilesOpen / 3));
 
 export type GameState = {
   version: 3;
@@ -30,11 +43,11 @@ export type GameState = {
 
   // Round 1
   revealIndex: number;
-  /** How many "show me a bit more" steps each picture has had (0–2). */
-  revealSteps: Record<string, number>;
+  /** How many tiles each picture has had flipped (0 to TILES − 1). */
+  tilesOpen: Record<string, number>;
   identityRevealed: Record<string, true>;
-  /** Studio points only. `atStep` is how much of the picture was showing. */
-  pictureGuessResults: Record<string, { guessed: boolean; atStep: number }>;
+  /** Studio points only. One buzz per traveller per picture. */
+  buzzes: Record<string, Partial<Record<PlayerId, Buzz>>>;
   /** Informal bookmarks. They never fill in a ballot. */
   bookmarks: Record<string, Bookmark>;
 
@@ -78,9 +91,9 @@ export const initialState: GameState = {
   phase: 'intro',
   playerNames: { a: '', b: '' },
   revealIndex: 0,
-  revealSteps: {},
+  tilesOpen: {},
   identityRevealed: {},
-  pictureGuessResults: {},
+  buzzes: {},
   bookmarks: {},
   preferredItineraryIds: {},
   duelIndex: 0,
@@ -108,11 +121,12 @@ export type Action =
   | { type: 'goToReveal'; index: number }
   | { type: 'showMore'; destinationId: string }
   | { type: 'revealIdentity'; destinationId: string }
-  | { type: 'recordGuess'; destinationId: string; guessed: boolean }
+  | { type: 'buzz'; destinationId: string; player: PlayerId; guessId: string }
   | { type: 'bookmark'; destinationId: string; bookmark?: Bookmark }
   | { type: 'chooseItinerary'; destinationId: string; itineraryId: string }
   | { type: 'goToDuel'; index: number }
-  | { type: 'answerDuel'; index: number; guess: DuelGuess; poundGuess?: number }
+  | { type: 'callDuel'; index: number; player: PlayerId; call: DuelCall; poundGuess?: number }
+  | { type: 'skipDuel'; index: number; poundGuess?: number }
   | { type: 'unlock'; ids: string[] }
   | { type: 'addToBallot'; destinationId: string }
   | { type: 'removeFromBallot'; destinationId: string }
@@ -190,20 +204,29 @@ export function reducer(state: GameState, action: Action): GameState {
       return { ...state, revealIndex: Math.max(0, Math.min(featuredIds.length - 1, action.index)) };
 
     case 'showMore':
-      return { ...state, revealSteps: { ...state.revealSteps, [action.destinationId]: Math.min(2, (state.revealSteps[action.destinationId] ?? 0) + 1) } };
+      if (state.identityRevealed[action.destinationId]) return state;
+      return {
+        ...state,
+        tilesOpen: { ...state.tilesOpen, [action.destinationId]: Math.min(TILES - 1, (state.tilesOpen[action.destinationId] ?? 0) + 1) },
+      };
 
     case 'revealIdentity':
       return { ...state, identityRevealed: { ...state.identityRevealed, [action.destinationId]: true } };
 
-    case 'recordGuess':
-      if (!state.identityRevealed[action.destinationId]) return state;
+    case 'buzz': {
+      const id = action.destinationId;
+      const mine = state.buzzes[id] ?? {};
+      if (state.identityRevealed[id] || !players(state).includes(action.player) || mine[action.player]) return state;
+      if (!pictureOptions(state, id).includes(action.guessId)) return state;
+      const buzzes = { ...mine, [action.player]: { guessId: action.guessId, tilesOpen: state.tilesOpen[id] ?? 0 } };
+      // A right answer, or nobody left to try, ends the picture.
+      const over = action.guessId === id || players(state).every((p) => buzzes[p]);
       return {
         ...state,
-        pictureGuessResults: {
-          ...state.pictureGuessResults,
-          [action.destinationId]: { guessed: action.guessed, atStep: state.revealSteps[action.destinationId] ?? 0 },
-        },
+        buzzes: { ...state.buzzes, [id]: buzzes },
+        identityRevealed: over ? { ...state.identityRevealed, [id]: true } : state.identityRevealed,
       };
+    }
 
     case 'bookmark':
       return {
@@ -223,19 +246,25 @@ export function reducer(state: GameState, action: Action): GameState {
     case 'goToDuel':
       return { ...state, duelIndex: Math.max(0, Math.min(Math.max(0, ladderIds.length - 2), action.index)) };
 
-    case 'answerDuel': {
+    case 'callDuel':
+    case 'skipDuel': {
       const pair = duelPair(state, action.index);
-      if (!pair || duelRecord(state, action.index)) return state;
-      const correct = action.guess === 'skip' ? null : pair.answer === 'same' || pair.answer === action.guess;
-      const rec: DuelRecord = {
-        index: action.index,
-        leftItineraryId: pair.left.id,
-        rightItineraryId: pair.right.id,
-        guess: action.guess,
-        correct,
-        ...(action.poundGuess != null && Number.isFinite(action.poundGuess) ? { poundGuess: Math.round(action.poundGuess) } : {}),
-      };
-      return { ...state, priceDuelHistory: [...state.priceDuelHistory.filter((h) => h.index !== action.index), rec] };
+      if (!pair) return state;
+      const prev = duelRecord(state, action.index);
+      if (prev && duelDone(state, prev)) return state;
+      const rec: DuelRecord = prev ?? { index: action.index, leftItineraryId: pair.left.id, rightItineraryId: pair.right.id, calls: {}, skipped: false };
+      let next: DuelRecord;
+      if (action.type === 'skipDuel') next = { ...rec, skipped: true };
+      else {
+        // Traveller B calls second, so A's call is never on screen for B to copy.
+        const p = action.player;
+        if (!players(state).includes(p) || rec.calls[p] || (p === 'b' && !rec.calls.a)) return state;
+        next = { ...rec, calls: { ...rec.calls, [p]: action.call } };
+      }
+      if (next.poundGuess == null && action.poundGuess != null && Number.isFinite(action.poundGuess) && action.poundGuess > 0) {
+        next = { ...next, poundGuess: Math.round(action.poundGuess) };
+      }
+      return { ...state, priceDuelHistory: [...state.priceDuelHistory.filter((h) => h.index !== action.index), next] };
     }
 
     case 'unlock': {
@@ -331,6 +360,38 @@ const unique = (ids: string[]) => ids.filter((id, i) => ids.indexOf(id) === i);
 
 // ───────────── Selectors ─────────────
 
+/** Who plays the guessing rounds: both travellers, or one shared player in the quick edition. */
+export function players(state: GameState): PlayerId[] {
+  return state.mode === 'quick' ? ['a'] : ['a', 'b'];
+}
+
+function hash(s: string): number {
+  let h = 2166136261;
+  for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+  return h;
+}
+
+/**
+ * The four answers offered for a Round 1 picture: the real city, one decoy from
+ * the same broadcast group where there is one, and two from the rest of the show.
+ * Fixed for a given show, so a reload offers the same four.
+ */
+export function pictureOptions(state: GameState, id: string): string[] {
+  const rank = (x: string) => hash(`${state.seed ?? 0}:${id}:${x}`);
+  const byRank = (a: string, b: string) => rank(a) - rank(b);
+  const sibling = (groupOf(id)?.cast ?? []).filter((x) => x !== id && isShowable(x)).sort(byRank)[0];
+  const rest = showDestinationIds.filter((x) => x !== id && x !== sibling).sort(byRank);
+  const decoys = [...(sibling ? [sibling] : []), ...rest].slice(0, 3);
+  return [id, ...decoys].sort(byRank);
+}
+
+/** Whether a duel has been settled: skipped, or everyone has called. */
+export function duelDone(state: GameState, rec: DuelRecord): boolean {
+  return rec.skipped || players(state).every((p) => rec.calls[p]);
+}
+
+export const callRight = (answer: DuelAnswer, call: DuelCall | undefined) => call != null && (answer === 'same' || answer === call);
+
 export function nameOf(state: GameState, player: PlayerId): string {
   if (state.mode === 'quick') return 'Both of you';
   return state.playerNames[player].trim() || (player === 'a' ? 'Traveller A' : 'Traveller B');
@@ -425,10 +486,25 @@ export function effectiveFinalists(state: GameState): string[] {
   return state.finalistsCustomised ? state.finalistDestinationIds : defaultFinalists(state);
 }
 
-export function studioPoints(state: GameState) {
-  const picture = Object.values(state.pictureGuessResults).reduce((sum, r) => sum + (r.guessed ? 3 - r.atStep : 0), 0);
-  const price = ladderIds.slice(0, -1).reduce((sum, _, i) => sum + (duelRecord(state, i)?.correct ? 1 : 0), 0);
-  return { picture, price, total: picture + price };
+export type StudioPoints = { picture: number; price: number; total: number };
+
+/** Entertainment only: never used to rank a holiday. */
+export function studioPoints(state: GameState): Record<PlayerId, StudioPoints> {
+  const tally = (p: PlayerId): StudioPoints => {
+    let picture = 0;
+    for (const [id, buzzes] of Object.entries(state.buzzes)) {
+      const b = buzzes[p];
+      if (b && b.guessId === id) picture += picturePoints(b.tilesOpen);
+    }
+    let price = 0;
+    for (let i = 0; i < Math.max(0, ladderIds.length - 1); i++) {
+      const rec = duelRecord(state, i);
+      const pair = duelPair(state, i);
+      if (rec && pair && !rec.skipped && duelDone(state, rec) && callRight(pair.answer, rec.calls[p])) price += DUEL_POINTS;
+    }
+    return { picture, price, total: picture + price };
+  };
+  return { a: tally('a'), b: state.mode === 'quick' ? { picture: 0, price: 0, total: 0 } : tally('b') };
 }
 
 export const phaseHref: Record<Phase, string> = {

@@ -1,6 +1,18 @@
 import { isSeed } from '../../lib/shuffle';
 import { featuredIds, isFeatured, isShowable, ladderIds, variantsFor } from './cast';
-import { initialState, MAX_FINALISTS, type Bookmark, type DuelRecord, type GameState, type Phase, type PlayerId, type Vote } from './state';
+import {
+  initialState,
+  MAX_FINALISTS,
+  TILES,
+  type Bookmark,
+  type Buzz,
+  type DuelCall,
+  type DuelRecord,
+  type GameState,
+  type Phase,
+  type PlayerId,
+  type Vote,
+} from './state';
 
 export const STORAGE_KEY = 'great-british-getaway-show:v3';
 
@@ -22,6 +34,33 @@ function record<T>(v: unknown, keep: (key: string, value: unknown) => T | undefi
   return out;
 }
 
+const isCall = (v: unknown): v is DuelCall => v === 'higher' || v === 'lower';
+
+/**
+ * A duel record, in either shape. Before the secret calls, one shared guess
+ * covered both travellers, so it is credited to each of them.
+ */
+function sanitiseDuel(h: unknown, travellers: PlayerId[]): DuelRecord | undefined {
+  if (!isObj(h) || !isCount(h.index) || typeof h.leftItineraryId !== 'string' || typeof h.rightItineraryId !== 'string') return undefined;
+  const base = {
+    index: h.index,
+    leftItineraryId: h.leftItineraryId,
+    rightItineraryId: h.rightItineraryId,
+    ...(typeof h.poundGuess === 'number' && Number.isFinite(h.poundGuess) ? { poundGuess: h.poundGuess } : {}),
+  };
+  if ('guess' in h) {
+    if (h.guess === 'skip') return { ...base, calls: {}, skipped: true };
+    const call = h.guess;
+    return isCall(call) ? { ...base, calls: Object.fromEntries(travellers.map((p) => [p, call])), skipped: false } : undefined;
+  }
+  const calls = isObj(h.calls) ? h.calls : {};
+  const kept: Partial<Record<PlayerId, DuelCall>> = {};
+  for (const p of travellers) if (isCall(calls[p])) kept[p] = calls[p];
+  // B only ever calls after A.
+  if (!kept.a) delete kept.b;
+  return { ...base, calls: kept, skipped: h.skipped === true };
+}
+
 const ids = (v: unknown, ok: (id: string) => boolean) =>
   Array.isArray(v) ? v.filter((id, i, a): id is string => typeof id === 'string' && ok(id) && a.indexOf(id) === i) : [];
 
@@ -38,6 +77,7 @@ export function sanitise(raw: unknown): GameState | null {
   const ballot = (v: unknown) => record(v, (k, val) => (pool.has(k) && votes.has(val as Vote) ? (val as Vote) : undefined));
   const ballots = isObj(raw.ballots) ? raw.ballots : {};
   const locked = isObj(raw.ballotLocked) ? raw.ballotLocked : {};
+  const travellers: PlayerId[] = mode === 'quick' ? ['a'] : ['a', 'b'];
   const editing: PlayerId | null = raw.editing === 'a' || (raw.editing === 'b' && mode === 'two_person') ? raw.editing : null;
 
   const state: GameState = {
@@ -50,13 +90,23 @@ export function sanitise(raw: unknown): GameState | null {
       b: typeof names.b === 'string' ? names.b.slice(0, 24) : '',
     },
     revealIndex: isCount(raw.revealIndex) ? Math.min(raw.revealIndex, Math.max(0, featuredIds.length - 1)) : 0,
-    revealSteps: record(raw.revealSteps, (k, val) => (isShowable(k) && isCount(val) ? Math.min(2, val) : undefined)),
+    // Saves from before single-tile flips counted steps of three tiles.
+    tilesOpen: isObj(raw.tilesOpen)
+      ? record(raw.tilesOpen, (k, val) => (isShowable(k) && isCount(val) ? Math.min(TILES - 1, val) : undefined))
+      : record(raw.revealSteps, (k, val) => (isShowable(k) && isCount(val) ? Math.min(2, val) * 3 : undefined)),
     identityRevealed: record(raw.identityRevealed, (k, val) => (isShowable(k) && val === true ? (true as const) : undefined)),
-    pictureGuessResults: record(raw.pictureGuessResults, (k, val) =>
-      isShowable(k) && isObj(val) && typeof val.guessed === 'boolean' && isCount(val.atStep)
-        ? { guessed: val.guessed, atStep: Math.min(2, val.atStep) }
-        : undefined,
-    ),
+    // The old "we got it" honour system named nobody, so its points are not carried over.
+    buzzes: record(raw.buzzes, (k, val) => {
+      if (!isShowable(k) || !isObj(val)) return undefined;
+      const kept: Partial<Record<PlayerId, Buzz>> = {};
+      for (const p of travellers) {
+        const b = val[p];
+        if (isObj(b) && typeof b.guessId === 'string' && isShowable(b.guessId) && isCount(b.tilesOpen)) {
+          kept[p] = { guessId: b.guessId, tilesOpen: Math.min(TILES - 1, b.tilesOpen) };
+        }
+      }
+      return Object.keys(kept).length > 0 ? kept : undefined;
+    }),
     bookmarks: record(raw.bookmarks, (k, val) => (isShowable(k) && bookmarks.has(val as Bookmark) ? (val as Bookmark) : undefined)),
     seed: isSeed(raw.seed) ? raw.seed : null,
     preferredItineraryIds: record(raw.preferredItineraryIds, (k, val) =>
@@ -64,24 +114,7 @@ export function sanitise(raw: unknown): GameState | null {
     ),
     duelIndex: isCount(raw.duelIndex) ? Math.min(raw.duelIndex, Math.max(0, ladderIds.length - 2)) : 0,
     priceDuelHistory: Array.isArray(raw.priceDuelHistory)
-      ? raw.priceDuelHistory
-          .filter(
-            (h): h is DuelRecord =>
-              isObj(h) &&
-              isCount(h.index) &&
-              typeof h.leftItineraryId === 'string' &&
-              typeof h.rightItineraryId === 'string' &&
-              (h.guess === 'higher' || h.guess === 'lower' || h.guess === 'skip') &&
-              (h.correct === null || typeof h.correct === 'boolean'),
-          )
-          .map((h) => ({
-            index: h.index,
-            leftItineraryId: h.leftItineraryId,
-            rightItineraryId: h.rightItineraryId,
-            guess: h.guess,
-            correct: h.correct,
-            ...(typeof h.poundGuess === 'number' && Number.isFinite(h.poundGuess) ? { poundGuess: h.poundGuess } : {}),
-          }))
+      ? raw.priceDuelHistory.flatMap((h) => sanitiseDuel(h, travellers) ?? [])
       : [],
     unlockedDestinationIds: ids(raw.unlockedDestinationIds, (id) => isShowable(id) && !isFeatured(id)),
     ballotExtraIds: extras,

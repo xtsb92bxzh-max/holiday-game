@@ -12,6 +12,7 @@ import { contestants } from '../data/contestants';
 import { copy } from '../data/copy';
 import { catchesFor, variantsFor } from '../lib/cast';
 import { costBreakdown } from '../lib/cost';
+import { nameOf, players, studioPoints, type StudioPoints } from '../lib/state';
 import { useShow } from './ShowProvider';
 
 export const btn = {
@@ -52,6 +53,24 @@ export function NoInfluence({ className = '' }: { className?: string }) {
     <span className={`inline-block rounded bg-gb-black px-2 py-0.5 text-[11px] font-bold uppercase tracking-widest text-gb-gold ${className}`}>
       {copy.noInfluence}
     </span>
+  );
+}
+
+/** Each traveller's studio points for one round, or in total. */
+export function StudioScores({ part, className = '' }: { part: keyof StudioPoints; className?: string }) {
+  const { state } = useShow();
+  const points = studioPoints(state);
+  return (
+    <p className={`text-sm ${className}`}>
+      Studio points:{' '}
+      {players(state).map((p, i) => (
+        <span key={p}>
+          {i > 0 && ' · '}
+          {state.mode === 'quick' ? 'You' : nameOf(state, p)} <strong className="tabular-nums">{points[p][part]}</strong>
+        </span>
+      ))}{' '}
+      <NoInfluence className="ml-1 align-middle" />
+    </p>
   );
 }
 
