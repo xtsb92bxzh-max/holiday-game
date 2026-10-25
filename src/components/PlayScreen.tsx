@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, ArrowRight, Snowflake, Sparkle, ThermometerSun, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, Snowflake, Sparkle, ThermometerSun, TriangleAlert } from 'lucide-react';
 import { useGame } from './GameContext';
 import { selectedItinerary, routeLabel } from '@/lib/catalogue';
 import { formatDateRange } from '@/lib/dates';
@@ -23,6 +24,9 @@ export default function PlayScreen({ mode }: { mode: 'main' | 'mystery' }) {
   const it = selectedItinerary(dest, state.itineraryChoice[dest.id]);
   const revealed = currentGuess(state, dest.id, it.id)?.revealed ?? false;
   const isLast = index === cast.length - 1;
+  // On phones the details wait until the price is out, so the game sits near the top.
+  const [moreFor, setMoreFor] = useState<string | null>(null);
+  const more = revealed || moreFor === dest.id;
 
   const go = (i: number) => {
     sfx('tick');
@@ -95,13 +99,6 @@ export default function PlayScreen({ mode }: { mode: 'main' | 'mystery' }) {
                 <li className="rounded-full bg-ink/10 px-3 py-1">{routeLabel[it.routeType]}</li>
               </ul>
 
-              <a
-                href={`#price-${dest.id}`}
-                className="inline-flex min-h-11 items-center rounded-full bg-red px-4 text-sm font-semibold text-cream lg:hidden"
-              >
-                Skip to the price guess ↓
-              </a>
-
               <ItineraryPicker
                 destination={dest}
                 selected={it}
@@ -109,50 +106,62 @@ export default function PlayScreen({ mode }: { mode: 'main' | 'mystery' }) {
                 onChoose={(id) => dispatch({ type: 'chooseItinerary', destinationId: dest.id, itineraryId: id })}
               />
 
-              {dest.highlights.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-ink/60">Reasons to go</p>
-                  <ul className="mt-1 space-y-1">
-                    {dest.highlights.slice(0, 3).map((h) => (
-                      <li key={h} className="flex gap-2">
-                        <Sparkle aria-hidden className="mt-1 size-3.5 shrink-0 text-mustard" />
-                        {h}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              {!more && (
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-cobalt underline decoration-dotted underline-offset-4 lg:hidden"
+                  onClick={() => setMoreFor(dest.id)}
+                >
+                  Reasons to go, the catch and the weather <ChevronDown aria-hidden className="size-4" />
+                </button>
               )}
 
-              <p className="flex gap-2 rounded-lg bg-red/10 p-3 text-sm">
-                <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-red" />
-                <span>
-                  <strong>Honest caution: </strong>
-                  {dest.caution}
-                </span>
-              </p>
+              <div className={`space-y-4 ${more ? '' : 'hidden lg:block'}`}>
+                {dest.highlights.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-ink/60">Reasons to go</p>
+                    <ul className="mt-1 space-y-1">
+                      {dest.highlights.slice(0, 3).map((h) => (
+                        <li key={h} className="flex gap-2">
+                          <Sparkle aria-hidden className="mt-1 size-3.5 shrink-0 text-mustard" />
+                          {h}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
-              {dest.winterTypical && (
-                <p className="flex gap-2 text-sm text-ink/80">
-                  {/warm|sun|1[5-9]|2\d/.test(dest.winterTypical) ? (
-                    <ThermometerSun aria-hidden className="mt-0.5 size-4 shrink-0" />
-                  ) : (
-                    <Snowflake aria-hidden className="mt-0.5 size-4 shrink-0" />
-                  )}
+                <p className="flex gap-2 rounded-lg bg-red/10 p-3 text-sm">
+                  <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-red" />
                   <span>
-                    {dest.winterTypical} <span className="text-ink/55">Typical January, not a forecast.</span>
+                    <strong>Honest caution: </strong>
+                    {dest.caution}
                   </span>
                 </p>
-              )}
 
-              <details className="group rounded-lg border border-ink/15 p-3">
-                <summary className="cursor-pointer list-none font-semibold marker:hidden">
-                  Flights, room and links <span className="text-ink/50 group-open:hidden">(show)</span>
-                </summary>
-                <div className="mt-3 space-y-4">
-                  <FlightFacts it={it} />
-                  <BookingLinks it={it} className="text-cobalt" />
-                </div>
-              </details>
+                {dest.winterTypical && (
+                  <p className="flex gap-2 text-sm text-ink/80">
+                    {/warm|sun|1[5-9]|2\d/.test(dest.winterTypical) ? (
+                      <ThermometerSun aria-hidden className="mt-0.5 size-4 shrink-0" />
+                    ) : (
+                      <Snowflake aria-hidden className="mt-0.5 size-4 shrink-0" />
+                    )}
+                    <span>
+                      {dest.winterTypical} <span className="text-ink/55">Typical January, not a forecast.</span>
+                    </span>
+                  </p>
+                )}
+
+                <details className="group rounded-lg border border-ink/15 p-3">
+                  <summary className="cursor-pointer list-none font-semibold marker:hidden">
+                    Flights, room and links <span className="text-ink/50 group-open:hidden">(show)</span>
+                  </summary>
+                  <div className="mt-3 space-y-4">
+                    <FlightFacts it={it} />
+                    <BookingLinks it={it} className="text-cobalt" />
+                  </div>
+                </details>
+              </div>
             </div>
           </article>
 

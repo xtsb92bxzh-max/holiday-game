@@ -4,12 +4,14 @@ import type { Decision, Destination } from './types';
 
 export type Screen = 'title' | 'conveyor' | 'play' | 'mystery' | 'final' | 'sensible';
 
+export type Pair<T> = [T, T];
+
 export type GuessRecord = {
   itineraryId: string;
-  guess: number | null;
+  /** One locked-in guess per contestant, in contestant order. null means no guess. */
+  guesses: Pair<number | null>;
   revealed: boolean;
-  points: number;
-  contestant?: string;
+  points: Pair<number>;
 };
 
 export type GameState = {
@@ -24,7 +26,6 @@ export type GameState = {
   decisions: Record<string, Decision>;
   winner: string | null;
   contestants: [string, string];
-  contestantTurn: 0 | 1;
   sound: boolean;
   reduceMotion: boolean | null; // null = follow the device setting
   /** Shuffles the running order. null keeps the workbook order (games saved before shuffling existed). */
@@ -43,7 +44,6 @@ export const initialState: GameState = {
   decisions: {},
   winner: null,
   contestants: ['Contestant One', 'Contestant Two'],
-  contestantTurn: 0,
   sound: false,
   reduceMotion: null,
   seed: null,
@@ -55,8 +55,8 @@ export type Action =
   | { type: 'setPlayIndex'; index: number }
   | { type: 'setMysteryIndex'; index: number }
   | { type: 'chooseItinerary'; destinationId: string; itineraryId: string }
-  | { type: 'setGuess'; destinationId: string; itineraryId: string; guess: number | null }
-  | { type: 'reveal'; destinationId: string; itineraryId: string; points: number }
+  | { type: 'lockGuess'; destinationId: string; itineraryId: string; contestant: 0 | 1; guess: number }
+  | { type: 'reveal'; destinationId: string; itineraryId: string; points: Pair<number> }
   | { type: 'decide'; destinationId: string; decision: Decision | null }
   | { type: 'setWinner'; destinationId: string | null }
   | { type: 'renameContestant'; index: 0 | 1; name: string }
@@ -81,14 +81,17 @@ export function reducer(state: GameState, action: Action): GameState {
       delete guesses[action.destinationId];
       return { ...state, itineraryChoice: { ...state.itineraryChoice, [action.destinationId]: action.itineraryId }, guesses };
     }
-    case 'setGuess': {
+    case 'lockGuess': {
       const prev = currentGuess(state, action.destinationId, action.itineraryId);
-      if (prev?.revealed) return state;
+      if (prev?.revealed || prev?.guesses[action.contestant] != null) return state;
+      if (!Number.isFinite(action.guess) || action.guess <= 0) return state;
+      const guesses: Pair<number | null> = [...(prev?.guesses ?? [null, null])];
+      guesses[action.contestant] = Math.min(9999, Math.round(action.guess));
       return {
         ...state,
         guesses: {
           ...state.guesses,
-          [action.destinationId]: { itineraryId: action.itineraryId, guess: action.guess, revealed: false, points: 0 },
+          [action.destinationId]: { itineraryId: action.itineraryId, guesses, revealed: false, points: [0, 0] },
         },
       };
     }
@@ -101,13 +104,11 @@ export function reducer(state: GameState, action: Action): GameState {
           ...state.guesses,
           [action.destinationId]: {
             itineraryId: action.itineraryId,
-            guess: prev?.guess ?? null,
+            guesses: prev?.guesses ?? [null, null],
             revealed: true,
             points: action.points,
-            contestant: state.contestants[state.contestantTurn],
           },
         },
-        contestantTurn: state.contestantTurn === 0 ? 1 : 0,
       };
     }
     case 'decide': {
@@ -156,12 +157,41 @@ export function currentGuess(state: GameState, destinationId: string, itineraryI
   return g && g.itineraryId === itineraryId ? g : undefined;
 }
 
-export function scoreFor(state: GameState): Record<string, number> {
-  const totals: Record<string, number> = { [state.contestants[0]]: 0, [state.contestants[1]]: 0 };
+/** Points so far, in contestant order. */
+export function scoreFor(state: GameState): Pair<number> {
+  const totals: Pair<number> = [0, 0];
   for (const g of Object.values(state.guesses)) {
-    if (g.revealed && g.contestant != null && g.contestant in totals) totals[g.contestant] += g.points;
+    if (!g.revealed) continue;
+    totals[0] += g.points[0];
+    totals[1] += g.points[1];
   }
   return totals;
+}
+
+/**
+ * Saves from before both contestants guessed held one guess, credited to a contestant by name.
+ * Revealed ones keep their guess and points; an unrevealed draft was never locked in, so it goes.
+ */
+function migrateGuesses(raw: unknown, contestants: [string, string]): Record<string, GuessRecord> {
+  const out: Record<string, GuessRecord> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [id, g] of Object.entries(raw as Record<string, any>)) {
+    if (!g || typeof g.itineraryId !== 'string') continue;
+    if (Array.isArray(g.guesses) && Array.isArray(g.points)) {
+      out[id] = g as GuessRecord;
+      continue;
+    }
+    if (!g.revealed) continue;
+    const who = contestants.indexOf(g.contestant);
+    const guesses: Pair<number | null> = [null, null];
+    const points: Pair<number> = [0, 0];
+    if (who === 0 || who === 1) {
+      guesses[who] = typeof g.guess === 'number' ? g.guess : null;
+      points[who] = typeof g.points === 'number' ? g.points : 0;
+    }
+    out[id] = { itineraryId: g.itineraryId, guesses, revealed: true, points };
+  }
+  return out;
 }
 
 export function loadState(storage: Pick<Storage, 'getItem'> | undefined): GameState | null {
@@ -170,7 +200,15 @@ export function loadState(storage: Pick<Storage, 'getItem'> | undefined): GameSt
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed?.version !== 1) return null;
-    return { ...initialState, ...parsed, seed: isSeed(parsed.seed) ? parsed.seed : null };
+    const { contestantTurn: _turn, ...rest } = parsed;
+    const contestants = Array.isArray(parsed.contestants) && parsed.contestants.length === 2 ? parsed.contestants : initialState.contestants;
+    return {
+      ...initialState,
+      ...rest,
+      contestants,
+      guesses: migrateGuesses(parsed.guesses, contestants),
+      seed: isSeed(parsed.seed) ? parsed.seed : null,
+    };
   } catch {
     return null;
   }

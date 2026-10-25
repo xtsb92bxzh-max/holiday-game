@@ -77,9 +77,9 @@ export default function ShowHeader() {
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-2 py-1.5 text-xs sm:px-4 sm:text-sm">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3" aria-label="Scoreboard">
               {state.contestants.map((name, i) => (
-                <span key={i} className={`flex items-baseline gap-1.5 ${state.contestantTurn === i ? 'text-gold' : 'text-cream/70'}`}>
-                  <span className="max-w-[4.5rem] truncate sm:max-w-[7.5rem]">{name}</span>
-                  <span className="scoreboard-digit text-sm sm:text-base">{String(scores[name] ?? 0).padStart(3, '0')}</span>
+                <span key={i} className={`flex items-baseline gap-1.5 ${scores[i] > scores[i === 0 ? 1 : 0] ? 'text-gold' : 'text-cream/70'}`}>
+                  <span className="max-w-[6.5rem] truncate sm:max-w-[9rem]">{name}</span>
+                  <span className="scoreboard-digit text-sm sm:text-base">{String(scores[i]).padStart(3, '0')}</span>
                 </span>
               ))}
             </div>

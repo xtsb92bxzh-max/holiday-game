@@ -38,12 +38,23 @@ export function roundForReveal(total: number): number {
   return Math.round(total);
 }
 
-/** Entertainment-only closeness points. */
-export function closenessPoints(guess: number, actual: number): 0 | 5 | 10 {
-  const diff = Math.abs(guess - actual);
-  if (diff <= 20) return 10;
-  if (diff <= 60) return 5;
+/** Entertainment-only closeness points, scaled to the price so dearer trips are no harder to guess. */
+export function closenessPoints(guess: number, actual: number): 0 | 3 | 6 | 10 {
+  const ratio = Math.abs(guess - actual) / actual;
+  if (ratio <= 0.05) return 10;
+  if (ratio <= 0.1) return 6;
+  if (ratio <= 0.2) return 3;
   return 0;
+}
+
+/** Extra points for the closest guess that does not go over. */
+export const UNDER_BONUS = 2;
+
+/** Each contestant's points for one price: closeness, plus the bonus for the closest guess not over. */
+export function duelPoints(guesses: readonly (number | null)[], actual: number): number[] {
+  const under = guesses.filter((g): g is number => g != null && g <= actual);
+  const best = under.length > 0 ? Math.max(...under) : null;
+  return guesses.map((g) => (g == null ? 0 : closenessPoints(g, actual) + (g === best ? UNDER_BONUS : 0)));
 }
 
 export function formatGBP(n: number | null, opts: { pence?: boolean } = {}): string {
