@@ -97,9 +97,45 @@ export const newSeed = () => Math.floor(Math.random() * 2 ** 31);
 /** Rounds in a shuffled show: the featured contestants, three to a stage. */
 export const mixedRoundCount = Math.ceil(featuredIds.length / 3);
 
-/** The featured contestants regrouped at random: who shares a stage, the running order and the seats. */
-function mixedEpisodesFor(seed: number): Episode[] {
-  const ids = seededShuffle(featuredIds, seed);
+const countryOf = (id: string) => destinationById[id].country.replace(/\s*\(.*\)$/, '');
+const themeOf = new Map(featuredEpisodes.flatMap((e) => e.cast.map((id) => [id, e.id] as const)));
+
+/** Two contestants from one country or one themed episode make a stage of near-twins. */
+const clash = (a: string, b: string) => countryOf(a) === countryOf(b) || themeOf.get(a) === themeOf.get(b);
+
+/**
+ * Seats the shuffled contestants in threes so that nobody shares a stage with a clash.
+ * Falls back to the plain shuffle if the cast cannot be split that way.
+ */
+function balancedDeal(ids: string[], seed: number): string[] {
+  const order = seededShuffle(ids, seed);
+  const sizes = Array.from({ length: Math.ceil(ids.length / 3) }, (_, i) => Math.min(3, ids.length - i * 3));
+  const stages: string[][] = sizes.map(() => []);
+  const seat = (i: number): boolean => {
+    if (i === order.length) return true;
+    let triedEmpty = false;
+    for (const [n, stage] of stages.entries()) {
+      if (stage.length === sizes[n] || stage.some((o) => clash(o, order[i]))) continue;
+      // Empty stages are interchangeable, so trying one is enough.
+      if (stage.length === 0) {
+        if (triedEmpty) continue;
+        triedEmpty = true;
+      }
+      stage.push(order[i]);
+      if (seat(i + 1)) return true;
+      stage.pop();
+    }
+    return false;
+  };
+  return seat(0) ? stages.flat() : order;
+}
+
+/**
+ * The featured contestants regrouped at random: who shares a stage, the running order and the seats.
+ * A balanced deal keeps countries and themes apart; shows dealt before that existed keep their line-up.
+ */
+function mixedEpisodesFor(seed: number, balanced: boolean): Episode[] {
+  const ids = balanced ? balancedDeal(featuredIds, seed) : seededShuffle(featuredIds, seed);
   const titles = seededShuffle(mixedEpisodes, seed + 1);
   return Array.from({ length: mixedRoundCount }, (_, i) => ({
     id: `round-${i + 1}`,
@@ -112,9 +148,9 @@ function mixedEpisodesFor(seed: number): Episode[] {
  * Featured episodes, then bonus episodes of up to three for any added contenders.
  * With a seed, the featured contestants are shuffled; without one, the themed episodes run as written.
  */
-export function episodesFor(order: string[], seed?: number | null): ShowEpisode[] {
+export function episodesFor(order: string[], seed?: number | null, balanced = false): ShowEpisode[] {
   const inOrder = new Set(order);
-  const main = (seed == null ? featuredEpisodes : mixedEpisodesFor(seed))
+  const main = (seed == null ? featuredEpisodes : mixedEpisodesFor(seed, balanced))
     .map((e) => ({ ...e, cast: e.cast.filter((id) => inOrder.has(id)), bonus: false }))
     .filter((e) => e.cast.length > 0);
   const extras = order.filter((id) => !featured.has(id) && showable.has(id));
@@ -133,12 +169,17 @@ export function episodesFor(order: string[], seed?: number | null): ShowEpisode[
 }
 
 /** Contestants in the order the show presents them. */
-export function ballotOrder(order: string[], seed?: number | null): string[] {
-  return episodesFor(order, seed).flatMap((e) => e.cast);
+export function ballotOrder(order: string[], seed?: number | null, balanced = false): string[] {
+  return episodesFor(order, seed, balanced).flatMap((e) => e.cast);
 }
 
-export function seatOf(destinationId: string, order: string[], seed?: number | null): { episode: ShowEpisode; seat: number } | undefined {
-  for (const episode of episodesFor(order, seed)) {
+export function seatOf(
+  destinationId: string,
+  order: string[],
+  seed?: number | null,
+  balanced = false,
+): { episode: ShowEpisode; seat: number } | undefined {
+  for (const episode of episodesFor(order, seed, balanced)) {
     const i = episode.cast.indexOf(destinationId);
     if (i >= 0) return { episode, seat: i + 1 };
   }

@@ -109,6 +109,29 @@ test('the standard show has 12 distinct, priced, illustrated featured contestant
   }
 });
 
+/** Words that settle a guess outright: the places, people and landmarks behind the clues. */
+const giveaways = [
+  'Polish', 'Czech', 'Danish', 'Spanish', 'Lithuanian', 'Estonian', 'Cypriot', 'Canary', 'Silesia', 'Andalusia',
+  'Costa del Sol', 'Vistula', 'Vltava', 'Wawel', 'Kazimierz', 'Cloth Hall', 'Charles Bridge', 'Nyhavn', 'Little Mermaid',
+  'Chopin', 'Picasso', 'Andersen', 'Teide',
+];
+const plain = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+test('no one-liner or clue names a show city, a country or a settling landmark', () => {
+  const banned = [
+    ...showDestinationIds.map((id) => destinationById[id].name),
+    ...new Set(showDestinationIds.map((id) => destinationById[id].country.replace(/\s*\(.*\)$/, ''))),
+    ...giveaways,
+  ].map(plain);
+  for (const id of featuredIds) {
+    const p = profiles[id];
+    for (const line of [p.stageIntro, ...p.clues]) {
+      const hit = banned.find((w) => new RegExp(`\\b${w}\\b`).test(plain(line)));
+      assert.equal(hit, undefined, `${id}: "${line}" names ${hit}`);
+    }
+  }
+});
+
 test('excluded countries and connections-to-verify rows never appear as contestants', () => {
   for (const id of showDestinationIds) {
     const d = destinationById[id];
@@ -381,6 +404,38 @@ test('a new show shuffles who shares a stage, the running order and the seats', 
   const lineups = new Set([1, 2, 3, 4, 5].map((seed) => JSON.stringify(episodesFor(featuredIds, seed).map((e) => e.cast))));
   assert.ok(lineups.size > 1);
   assert.deepEqual(seededShuffle([1, 2, 3], 7), seededShuffle([1, 2, 3], 7));
+});
+
+test('a new shuffled show keeps countries and themes apart on every stage', () => {
+  const themes = new Map(episodesFor(featuredIds).flatMap((e) => e.cast.map((id) => [id, e.id] as const)));
+  const country = (id: string) => destinationById[id].country.replace(/\s*\(.*\)$/, '');
+  const lineups = new Set<string>();
+  for (let seed = 0; seed < 200; seed++) {
+    const s = run([{ type: 'start', seed }]);
+    assert.equal(s.balancedDeal, true);
+    const eps = showEpisodes(s);
+    assert.deepEqual([...eps.flatMap((e) => e.cast)].sort(), [...featuredIds].sort(), `seed ${seed}: everyone appears once`);
+    for (const e of eps) {
+      assert.equal(new Set(e.cast.map(country)).size, e.cast.length, `seed ${seed}: ${e.cast} share a country`);
+      assert.equal(new Set(e.cast.map((id) => themes.get(id))).size, e.cast.length, `seed ${seed}: ${e.cast} share a theme`);
+    }
+    lineups.add(JSON.stringify(eps.map((e) => e.cast)));
+  }
+  assert.ok(lineups.size > 100, 'the deal still varies from show to show');
+});
+
+test('a shuffled show saved before balanced deals keeps its line-up; reshuffling balances it', () => {
+  const s = run([{ type: 'start', seed: 12345 }]);
+  const { balancedDeal: _, ...old } = s;
+  const loaded = sanitise(JSON.parse(JSON.stringify(old)))!;
+  assert.equal(loaded.balancedDeal, false);
+  assert.deepEqual(
+    showEpisodes(loaded).map((e) => e.cast),
+    episodesFor(featuredIds, 12345).map((e) => e.cast),
+    'the old deal is untouched',
+  );
+  assert.equal(reducer(loaded, { type: 'reshuffle', seed: 7 }).balancedDeal, true);
+  assert.equal(sanitise(JSON.parse(JSON.stringify(s)))!.balancedDeal, true, 'a balanced show reloads balanced');
 });
 
 test('the line-up only changes before anything has happened', () => {

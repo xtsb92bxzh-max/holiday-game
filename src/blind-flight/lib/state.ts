@@ -47,6 +47,8 @@ export type GameState = {
   destinationOrder: string[];
   /** Shuffles the line-up. null runs the themed episodes in their written order. */
   seed: number | null;
+  /** Shuffled shows keep countries and themes apart. Shows dealt before that existed keep their line-up. */
+  balancedDeal: boolean;
   preferredItineraryByDestination: Record<string, string>;
   /** Keyed by episode id. */
   episodes: Record<string, EpisodeProgress>;
@@ -80,6 +82,7 @@ export const initialState: GameState = {
   nicknames: { traveller1: '', traveller2: '' },
   destinationOrder: featuredIds,
   seed: null,
+  balancedDeal: false,
   preferredItineraryByDestination: {},
   episodes: {},
   final: emptyFinal(),
@@ -122,7 +125,7 @@ export type Action =
   | { type: 'reset' };
 
 function findEpisode(state: GameState, episodeId: string): ShowEpisode | undefined {
-  return episodesFor(state.destinationOrder, state.seed).find((e) => e.id === episodeId);
+  return episodesFor(state.destinationOrder, state.seed, state.balancedDeal).find((e) => e.id === episodeId);
 }
 
 function withEpisode(state: GameState, episodeId: string, fn: (p: EpisodeProgress, e: ShowEpisode) => EpisodeProgress | null): GameState {
@@ -153,13 +156,16 @@ export function reducer(state: GameState, action: Action): GameState {
     case 'setNickname':
       return { ...state, nicknames: { ...state.nicknames, [action.player]: action.name.slice(0, 24) } };
 
-    case 'start':
+    case 'start': {
       // A fresh show gets its line-up shuffled once; a show in progress keeps its own.
-      return { ...state, started: true, seed: state.seed ?? (anyProgress(state) ? null : (action.seed ?? null)) };
+      if (state.seed != null || anyProgress(state)) return { ...state, started: true };
+      const seed = action.seed ?? null;
+      return { ...state, started: true, seed, balancedDeal: seed != null };
+    }
 
     case 'reshuffle':
       if (anyProgress(state)) return state;
-      return { ...state, seed: action.seed, episodes: {}, final: emptyFinal() };
+      return { ...state, seed: action.seed, balancedDeal: true, episodes: {}, final: emptyFinal() };
 
     case 'nextQuestion':
       return withEpisode(state, action.episodeId, (p) =>
@@ -345,7 +351,7 @@ export function displayName(state: GameState, player: PlayerId): string {
 }
 
 export function showEpisodes(state: GameState): ShowEpisode[] {
-  return episodesFor(state.destinationOrder, state.seed);
+  return episodesFor(state.destinationOrder, state.seed, state.balancedDeal);
 }
 
 /** Contestants in the order the show presents them. */

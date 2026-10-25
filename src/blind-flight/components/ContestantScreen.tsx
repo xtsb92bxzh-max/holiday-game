@@ -185,7 +185,7 @@ export default function ContestantScreen({ id }: { id: string }) {
   const d = destinationById[id];
   const inShow = state.destinationOrder.includes(id);
   const it = selectedVariant(id, state.preferredItineraryByDestination[id]);
-  const seat = seatOf(id, state.destinationOrder, state.seed);
+  const seat = seatOf(id, state.destinationOrder, state.seed, state.balancedDeal);
 
   if (!d || !it) return null;
 
