@@ -109,7 +109,7 @@ test('the standard show has 12 distinct, priced, illustrated featured contestant
   }
 });
 
-/** Words that settle a guess outright: places, people and landmarks named in the old clues. */
+/** Words that settle a guess outright: the places, people and landmarks behind the clues. */
 const giveaways = [
   'Polish', 'Czech', 'Danish', 'Spanish', 'Lithuanian', 'Estonian', 'Cypriot', 'Canary', 'Silesia', 'Andalusia',
   'Costa del Sol', 'Vistula', 'Vltava', 'Wawel', 'Kazimierz', 'Cloth Hall', 'Charles Bridge', 'Nyhavn', 'Little Mermaid',
