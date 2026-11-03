@@ -23,7 +23,7 @@ export default function PracticalScreen() {
           Practical check
         </h1>
         <p className="mt-4 leading-relaxed">
-          The story cannot tell how you feel about cold weather or cost, so it does not try. Answer these if they matter to you. They add notes to the
+          The story cannot tell how you feel about cold weather, early flights or cost, so it does not try. Answer these if they matter to you. They add notes to the
           result. They do not change what your choices suggest.
         </p>
 

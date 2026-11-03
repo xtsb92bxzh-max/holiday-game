@@ -82,6 +82,19 @@ export function practicalLines(o: ShortlistOption): PracticalLine[] {
     });
   }
 
+  for (const leg of p.timetableLegs ?? []) {
+    lines.push({
+      label: leg.direction === 'out' ? 'Getting there' : 'Coming home',
+      text: `Direct, ${leg.from} → ${leg.to} on ${formatDate(leg.date)}. Leaves ${leg.departs}, arrives ${leg.arrives} (${leg.airline} ${leg.flight}). From the workbook’s uploaded timetable (${leg.source}).`,
+      status: 'researched',
+    });
+    lines.push({
+      label: leg.direction === 'out' ? 'Outbound fare' : 'Return fare',
+      text: 'No fare has been matched to this flight. A timetable listing does not prove seats are available.',
+      status: 'unconfirmed',
+    });
+  }
+
   if (p.returnItineraryId) {
     const it = itineraryById[p.returnItineraryId];
     lines.push({
@@ -130,6 +143,24 @@ export function verifiedTotal(o: ShortlistOption): number | null {
   return it && hasPrice(it) ? it.estimatedTotalForTwoGBP : null;
 }
 
+/**
+ * The earliest confirmed departure from the UK for a trip, as HH:MM, or null
+ * when no outbound time is confirmed in the researched data.
+ */
+export function confirmedDeparture(o: ShortlistOption): string | null {
+  const p = o.practical;
+  const times: string[] = [];
+  for (const id of [p.wholeTripItineraryId, p.outboundItineraryId]) {
+    const it = id ? itineraryById[id] : undefined;
+    if (it?.timesConfirmed && it.flightTimes) times.push(it.flightTimes.leaveUK);
+  }
+  for (const leg of p.timetableLegs ?? []) if (leg.direction === 'out') times.push(leg.departs);
+  return times.length ? times.sort()[0] : null;
+}
+
+/** Departures before this count as an early start. */
+export const EARLY_BEFORE = '07:00';
+
 /** Plain notes from the practical check. They never re-rank the story result. */
 export function practicalNotes(answers: PracticalAnswers, ranked: Ranked[], shown: ShortlistOption[]): string[] {
   const notes: string[] = [];
@@ -150,6 +181,19 @@ export function practicalNotes(answers: PracticalAnswers, ranked: Ranked[], show
     }
   } else if (answers.cold === 'unsure') {
     for (const o of shown) notes.push(`${o.name} in January: ${lower(o.january)}`);
+  }
+
+  if (answers.early === 'avoid') {
+    for (const o of shown) {
+      const t = confirmedDeparture(o);
+      notes.push(
+        t == null
+          ? `${o.name}: outbound flight times are not confirmed in the researched data, so an early start cannot be ruled out yet.`
+          : t < EARLY_BEFORE
+            ? `${o.name}: the researched flight out leaves at ${t}, which is the early start you wanted to avoid.`
+            : `${o.name}: the researched flight out leaves at ${t}.`,
+      );
+    }
   }
 
   if (answers.cost === 'first' || answers.cost === 'matters') {

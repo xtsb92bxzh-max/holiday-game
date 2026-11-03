@@ -233,7 +233,7 @@ The brief is in `docs/THE_ENVELOPE_BUILD_BRIEF.md`.
 2. The story runs from the first night to the last evening. Every path has nine decisions, plus a tenth when the result is close. Each decision offers two or three options. A playthrough is about 1,300–1,650 words, or 5–8 minutes.
 3. The objective is to find what the key opens. Branches follow the bookseller (Vera), the train to the mapmaker's town (Teodora) or the river ferry (Nadia), then rejoin. Earlier choices return as callbacks, and the city's weather and people shift with the player's leanings.
 4. All three endings resolve the key the same way: drawer 14 of a plan chest behind reception. Who is there, and what the player draws on their own map, depends on the route taken.
-5. After the story comes an optional practical check on cold weather and cost. It adds notes and never changes the ranking.
+5. After the story comes an optional practical check on cold weather, early flights and cost. It adds notes and never changes the ranking.
 6. The result shows the best match and its night split, the decisions that pointed to it, how the trip could feel, January conditions, the main compromise and a runner-up. The player can compare the top two, revisit any decision, replay, or go to the full holiday table at `/getaway-show/holidays`.
 
 Back a step and Start again are under every scene. Number keys 1–3 pick an option. Focus moves to each new scene's heading. The lightning button turns animation off, and the device's reduced-motion setting is honoured.
@@ -277,7 +277,13 @@ The practical check never infers anything from the story. Budget, cold tolerance
 
 ### Practical data
 
-Málaga and Kraków use the workbook's priced five-night trips. The two-city splits reuse researched legs only where the dates match: the Poznań → Edinburgh and Kraków → Glasgow return flights on 22 January, and the Kraków room for 18–22 January. Everything else is marked unconfirmed, including Rzeszów flights, all train connections and the totals for both splits. Rzeszów is not in the workbook.
+Málaga and Kraków use the workbook's priced five-night trips. The two-city splits reuse researched legs only where the dates match: the Poznań → Edinburgh and Kraków → Glasgow return flights on 22 January, and the Kraków room for 18–22 January.
+
+The splits' outbound flights come from the workbook's `Uploaded outbound` timetable sheet: Edinburgh → Gdańsk at 06:05 (row 10) and Edinburgh → Rzeszów at 09:00 (row 29), both on 17 January. The importer does not read the timetable sheets, so these are copied into `shortlist.ts` with their row numbers. Recheck them if the workbook changes. Neither has a fare.
+
+Everything else is marked unconfirmed, including all train connections, the Rzeszów room and the totals for both splits.
+
+The practical check asks about cold, early flights and cost. The early-flight note quotes only confirmed departure times.
 
 ### Screenshots
 
@@ -313,7 +319,7 @@ Guesses, decisions, the chosen dates, contestant names and settings are saved in
 - Weather lines describe typical January climate from general knowledge. They are not forecasts.
 - Points in the price round are entertainment only and do not rank the holidays.
 - Independent voting on two phones, live fares and shared links are not built in any game.
-- The Envelope's January descriptions for Rzeszów are general knowledge. Nothing about Rzeszów is in the workbook.
+- The Envelope's January description for Rzeszów is general knowledge. The workbook has a timetabled flight to Rzeszów but no fare, room or climate notes.
 - The Envelope's balance figures count every path equally. Real players will not choose at random, so they describe reachability rather than how often each trip will be suggested.
 - Eight unpriced Getaway Show wildcards (Santander, Istanbul, Alicante, Lanzarote, Gran Canaria, Barcelona, Geneva and Zurich) have no photo yet and use the designed poster fallback.
 - The repository has no ESLint set-up, so there is no `npm run lint`. `npm run typecheck` and `npm run build` cover type and build errors.

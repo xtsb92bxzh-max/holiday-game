@@ -73,6 +73,26 @@ export type PracticalLine = {
   status: 'researched' | 'unconfirmed';
 };
 
+/**
+ * A scheduled flight copied from the workbook's "Uploaded outbound" or
+ * "Uploaded return" timetable sheets. The importer does not read those
+ * sheets, so these are kept by hand with a row reference. No fare is implied.
+ */
+export type TimetableLeg = {
+  direction: 'out' | 'home';
+  from: string;
+  to: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** Local times, HH:MM. */
+  departs: string;
+  arrives: string;
+  airline: string;
+  flight: string;
+  /** Sheet and row in the workbook, e.g. "Uploaded outbound, row 29". */
+  source: string;
+};
+
 export type Segment = {
   name: string;
   /** Links to `src/data/destinations.ts` when the city is in the researched data. */
@@ -103,6 +123,8 @@ export type ShortlistOption = {
     outboundItineraryId?: string;
     /** An itinerary whose return leg matches the last city. */
     returnItineraryId?: string;
+    /** Scheduled flights from the workbook's timetable sheets, where no itinerary covers the leg. */
+    timetableLegs?: TimetableLeg[];
     /** Room quotes, by segment index. Prices are shown only when the dates match exactly. */
     rooms?: { segment: number; itineraryId: string }[];
     /** Anything the researched data does not cover. */

@@ -100,7 +100,7 @@ const shots = process.env.SCREENSHOTS;
 
   await pick('See where your map points');
   await page.getByRole('heading', { name: 'Practical check' }).waitFor();
-  await page.getByText('I’d rather avoid it').click();
+  await page.getByText('I’d rather avoid it').first().click();
   await page.getByText('Cost comes first').click();
   await check('08-practical');
   await pick('Show the suggestion');

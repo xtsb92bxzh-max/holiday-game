@@ -9,6 +9,9 @@
  * - `practical` points at itineraries in src/data/itineraries.json, which is
  *   generated from the researched workbook. Leave a field out when no
  *   researched itinerary matches; say what is missing in `unconfirmed`.
+ * - `timetableLegs` are copied by hand from the workbook's "Uploaded outbound"
+ *   and "Uploaded return" sheets, which the importer does not read. Keep the
+ *   row reference, and recheck them if the workbook changes.
  * - Room prices are shown only when the quote's dates match the segment exactly.
  * - `january` describes typical January climate only. It is not a forecast.
  *
@@ -67,11 +70,23 @@ export const SHORTLIST: ShortlistOption[] = [
     feel:
       'Three nights by the water in Gdańsk: tall merchant houses on the Motława, a damp Baltic wind, smoked fish and long café afternoons. Then a train inland to Poznań for two quieter nights around a painted market square, with the feeling of having travelled somewhere rather than simply stayed.',
     compromise:
-      'A travel day in the middle and fewer nights in each city. Damp Baltic cold. The flights, the train and the rooms for this split have not been priced together, so the total is unknown.',
+      'A travel day in the middle and fewer nights in each city. Damp Baltic cold. The direct flight out leaves Edinburgh at 06:05. The flights, the train and the rooms for this split have not been priced, so the total is unknown.',
     january: 'Typically around 0–3 °C by day in both cities, damp and breezy on the Baltic coast. Snow is possible but not guaranteed.',
     coldWinter: true,
     practical: {
-      outboundItineraryId: 'EU005',
+      timetableLegs: [
+        {
+          direction: 'out',
+          from: 'EDI',
+          to: 'GDN',
+          date: '2027-01-17',
+          departs: '06:05',
+          arrives: '09:25',
+          airline: 'Ryanair',
+          flight: 'FR6124',
+          source: 'Uploaded outbound, row 10',
+        },
+      ],
       returnItineraryId: 'EU022',
       rooms: [
         { segment: 0, itineraryId: 'EU005' },
@@ -79,7 +94,7 @@ export const SHORTLIST: ShortlistOption[] = [
       ],
       unconfirmed: [
         'Train times and fares between Gdańsk and Poznań are not in the researched data.',
-        'A one-way fare into Gdańsk is not in the researched data. The priced Gdańsk example is a return.',
+        'The workbook’s priced Gdańsk example is a connecting return trip, so its fare does not apply to this split.',
         'No total is available for this combination.',
       ],
     },
@@ -96,14 +111,27 @@ export const SHORTLIST: ShortlistOption[] = [
     feel:
       'A first night somewhere few people you know have been: a small old town, a quiet square and the pleasure of arriving without expectations. Then the train west to Kraków for four nights of old town, museums and Kazimierz evenings, with the sense of having come in by the side door.',
     compromise:
-      'A single night in Rzeszów is brief, and starting there adds travel. Flights to Rzeszów are not in the researched data at all, so this option is the least certain to work in practice.',
+      'A single night in Rzeszów is brief, and starting there adds a train journey. You would fly out from Edinburgh and back into Glasgow. No fares have been matched to either flight, so this option is the least certain on cost.',
     january: 'Typically around freezing by day in both cities, with frost likely. Snow is possible but not guaranteed.',
     coldWinter: true,
     practical: {
+      timetableLegs: [
+        {
+          direction: 'out',
+          from: 'EDI',
+          to: 'RZE',
+          date: '2027-01-17',
+          departs: '09:00',
+          arrives: '12:50',
+          airline: 'Ryanair',
+          flight: 'FR4535',
+          source: 'Uploaded outbound, row 29',
+        },
+      ],
       returnItineraryId: 'EU021',
       rooms: [{ segment: 1, itineraryId: 'EU021' }],
       unconfirmed: [
-        'Flights to Rzeszów are not in the researched data. Whether a suitable route from Scotland exists for these dates is unconfirmed.',
+        'The flight out leaves from Edinburgh and the flight home lands in Glasgow.',
         'Train times and fares from Rzeszów to Kraków are not in the researched data.',
         'No room in Rzeszów has been researched.',
         'No total is available for this combination.',

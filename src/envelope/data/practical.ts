@@ -1,12 +1,12 @@
 /**
  * The practical check, asked after the story. Edit freely.
  *
- * The story never guesses budget or cold tolerance from fictional behaviour.
+ * The story never guesses budget, cold tolerance or early starts from fictional behaviour.
  * These answers do not change the ranking. They add plain notes to the result,
  * and point out the best story match that avoids a stated dealbreaker.
  */
 export type PracticalQuestion = {
-  id: 'cold' | 'cost';
+  id: 'cold' | 'early' | 'cost';
   legend: string;
   hint: string;
   options: { id: string; label: string }[];
@@ -21,6 +21,15 @@ export const PRACTICAL_QUESTIONS: PracticalQuestion[] = [
       { id: 'fine', label: 'That’s fine' },
       { id: 'avoid', label: 'I’d rather avoid it' },
       { id: 'unsure', label: 'Not sure' },
+    ],
+  },
+  {
+    id: 'early',
+    legend: 'Would a flight leaving Scotland before 07:00 put you off?',
+    hint: 'Only some flight times are confirmed. The direct flight to Gdańsk leaves Edinburgh at 06:05. Elsewhere this answer may not be checkable yet.',
+    options: [
+      { id: 'fine', label: 'That’s fine' },
+      { id: 'avoid', label: 'I’d rather avoid it' },
     ],
   },
   {

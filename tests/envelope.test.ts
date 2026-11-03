@@ -8,7 +8,7 @@ import { SHORTLIST } from '../src/envelope/data/shortlist';
 import { SCENES, START, TIEBREAKS } from '../src/envelope/data/story';
 import { allPaths, audit, type PathResult } from '../src/envelope/lib/audit';
 import { choicesFor, isFinished, paragraphsFor, sceneById, walk } from '../src/envelope/lib/engine';
-import { practicalLines, practicalNotes, segmentDates, TRIP_START, tripEnd, verifiedTotal } from '../src/envelope/lib/practical';
+import { confirmedDeparture, practicalLines, practicalNotes, segmentDates, TRIP_START, tripEnd, verifiedTotal } from '../src/envelope/lib/practical';
 import { contributions, explain, profileOf, rank, recommend, splittingDim } from '../src/envelope/lib/scoring';
 import { initialState, loadState, reducer, sanitise, saveState, STORAGE_KEY, type Action, type State } from '../src/envelope/lib/state';
 import { resultCopy } from '../src/envelope/lib/summary';
@@ -296,6 +296,15 @@ test('practical details use researched itineraries on the right dates, and say w
       assert.equal(it.returnDate, tripEnd(o), `${o.id}: home on the last day`);
       assert.equal(it.destinationId, o.segments[o.segments.length - 1].destinationId);
     }
+    for (const leg of p.timetableLegs ?? []) {
+      assert.equal(leg.date, leg.direction === 'out' ? TRIP_START : tripEnd(o), `${o.id}: ${leg.flight} is on the right day`);
+      assert.match(leg.departs, /^\d\d:\d\d$/);
+      assert.match(leg.source, /^Uploaded (outbound|return), row \d+$/, 'timetable legs cite their workbook row');
+    }
+    // Every trip has a way there and a way home, researched or not.
+    const hasOut = Boolean(p.wholeTripItineraryId || p.outboundItineraryId || p.timetableLegs?.some((l) => l.direction === 'out'));
+    const hasHome = Boolean(p.wholeTripItineraryId || p.returnItineraryId || p.timetableLegs?.some((l) => l.direction === 'home'));
+    assert.ok(hasOut && hasHome, `${o.id} has researched flights both ways`);
     const dates = segmentDates(o);
     const lines = practicalLines(o);
     for (const r of p.rooms ?? []) {
@@ -329,6 +338,15 @@ test('the practical check adds notes but never changes the suggestion', () => {
   assert.ok(notes.some((n) => n.includes('lowest')));
   assert.equal(resultCopy(trail).matches[0].option.id, p.rec.top.id);
   for (const q of PRACTICAL_QUESTIONS) assert.ok(q.options.length >= 2);
+
+  // Early starts: only confirmed times are quoted.
+  const gdansk = SHORTLIST.find((o) => o.id === 'gdansk-poznan')!;
+  const malaga = SHORTLIST.find((o) => o.id === 'malaga')!;
+  assert.equal(confirmedDeparture(gdansk), '06:05');
+  assert.equal(confirmedDeparture(malaga), null, 'the priced Málaga fare has no confirmed times');
+  const early = practicalNotes({ early: 'avoid' }, p.rec.ranked, [gdansk, malaga]);
+  assert.ok(early.some((n) => n.includes('06:05') && n.includes('early start you wanted to avoid')));
+  assert.ok(early.some((n) => n.startsWith('Málaga') && n.includes('not confirmed')));
 });
 
 test('saved progress round-trips and drops steps that no longer fit the story', () => {

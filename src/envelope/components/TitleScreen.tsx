@@ -68,8 +68,8 @@ export default function TitleScreen() {
               runner-up beside it. If the two are close, the story says so and offers one last choice.
             </p>
             <p>
-              After the story there is an optional practical check about cold weather and cost. Those answers add notes. They do not change what the story
-              suggests.
+              After the story there is an optional practical check about cold weather, early flights and cost. Those answers add notes. They do not change
+              what the story suggests.
             </p>
             <p>The shortlist: {SHORTLIST.map((o) => `${o.name} (${lowerFirst(o.split)})`).join('; ')}.</p>
           </div>
