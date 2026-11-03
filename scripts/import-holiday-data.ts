@@ -47,7 +47,6 @@ const DESTINATION_IDS: Record<string, string> = {
   'Santander': 'santander',
   'Istanbul': 'istanbul',
   'Helsinki': 'helsinki',
-  'Alicante': 'alicante',
   'Venice': 'venice',
   'Amsterdam': 'amsterdam',
   'Lanzarote': 'lanzarote',
