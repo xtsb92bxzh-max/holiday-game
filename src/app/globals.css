@@ -37,6 +37,17 @@
   --color-gb-paper: #fff7e6;
   --color-gb-black: #141b29;
   --font-gb-display: 'Anton', 'Impact', 'Arial Narrow', sans-serif;
+
+  /* The Envelope */
+  --color-en-night: #0e1622;
+  --color-en-dusk: #1a2738;
+  --color-en-lamp: #f1b860;
+  --color-en-mist: #c9d4e0;
+  --color-en-paper: #f5eedf;
+  --color-en-fold: #e7dbc2;
+  --color-en-ink: #1c2230;
+  --color-en-rust: #9a3b28;
+  --color-en-sea: #8fcac1;
 }
 
 @layer base {
@@ -437,5 +448,62 @@
   .gb-print-plain {
     box-shadow: none !important;
     break-inside: avoid;
+  }
+}
+
+/* ───────────── The Envelope ───────────── */
+
+.en-night {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 55% 35% at 12% -4%, rgb(241 184 96 / 0.22), transparent 70%),
+    radial-gradient(ellipse 45% 40% at 100% 100%, rgb(143 202 193 / 0.1), transparent 70%),
+    linear-gradient(180deg, #13202f 0%, #0e1622 60%, #0b111b 100%);
+  color: var(--color-en-paper);
+}
+/* Faint rain. It stops under reduced motion. */
+.en-night::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: repeating-linear-gradient(105deg, transparent 0 22px, rgb(201 212 224 / 0.035) 22px 23px);
+  background-size: 240px 240px;
+  animation: en-rain 9s linear infinite;
+}
+@keyframes en-rain {
+  to { background-position: -60px 240px; }
+}
+
+/* Map paper: warm, with faint survey lines. */
+.en-paper {
+  background:
+    linear-gradient(rgb(28 34 48 / 0.035) 1px, transparent 1px) 0 0 / 100% 32px,
+    linear-gradient(90deg, rgb(28 34 48 / 0.035) 1px, transparent 1px) 0 0 / 32px 100%,
+    radial-gradient(ellipse at 30% 0%, #fbf6ea, transparent 70%),
+    var(--color-en-paper);
+  color: var(--color-en-ink);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.6) inset,
+    0 24px 60px rgb(0 0 0 / 0.45);
+}
+
+.en-fade {
+  animation: en-fade 0.45s ease-out both;
+}
+@keyframes en-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.en-prose p + p {
+  margin-top: 0.9em;
+}
+
+@media print {
+  .en-no-print {
+    display: none !important;
   }
 }
