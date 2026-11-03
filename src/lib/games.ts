@@ -26,4 +26,10 @@ export const games: GameListing[] = [
     tagline: 'Tonight, twelve cities enter. Two indecisive adults leave.',
     image: '/images/destinations/krakow.jpg',
   },
+  {
+    slug: 'the-envelope',
+    title: 'The Envelope',
+    tagline: 'A hand-drawn map, a brass key and five nights in a city that will not give its name.',
+    image: '/images/envelope/card.svg',
+  },
 ];

@@ -1,16 +1,17 @@
 # Holiday Games
 
-Three game-show front ends for choosing a January 2027 European break for two. All read the same researched spreadsheet, so they always show the same prices.
+Three game-show front ends and one interactive story for choosing a January 2027 European break. All read the same researched spreadsheet, so they always show the same prices.
 
 - The Great January Getaway (`/january-getaway`) is a tongue-in-cheek Saturday-night prize show: conveyor belt, guess the price, Keep / Maybe / Bin and a Grand Final.
 - Blind Flight (`/blind-flight`) is a retro dating-show parody. Each episode hides three destinations behind a screen. The host asks them questions, each traveller secretly picks one, and only then are they unmasked.
 - The Great British Getaway Show (`/getaway-show`) is a late-1980s Saturday-evening game-show parody: a tile-flip picture reveal, higher-or-lower price duels, a dartboard of wildcards, private two-person ballots and a grand final.
+- The Envelope (`/the-envelope`) is a short choose-your-own-adventure story in an unnamed city. The player's choices suggest one of four shortlisted trips.
 
 All prices are indicative totals for two, observed on 23 October 2026. They are not live fares. Every price and link needs rechecking before you book.
 
 ## Games on this site
 
-The home page (`/`) lists every game. The January Getaway lives at `/january-getaway`, Blind Flight at `/blind-flight` and the Getaway Show at `/getaway-show`.
+The home page (`/`) lists every game. The January Getaway lives at `/january-getaway`, Blind Flight at `/blind-flight`, the Getaway Show at `/getaway-show` and The Envelope at `/the-envelope`.
 
 To add a game, give it its own folder under `src/app/` and add an entry to `src/lib/games.ts`. Set `comingSoon: true` to show it on the home page before it is playable.
 
@@ -23,6 +24,7 @@ npm install
 npm run dev          # http://localhost:3000
 npm test             # data and logic checks
 node tests/e2e/getaway-show.smoke.cjs   # browser play-through; needs `npm start` running and Playwright installed
+node tests/e2e/envelope.smoke.cjs       # the same for The Envelope
 npm run typecheck
 npm run build        # production build, as Vercel runs it
 ```
@@ -221,6 +223,68 @@ Taken at iPhone width (375 px) by the smoke test: `docs/screenshots/getaway-show
 |---|---|---|
 | ![Pass the phone](docs/screenshots/getaway-show/08-handover.png) | ![Results](docs/screenshots/getaway-show/09-results.png) | ![Certificate](docs/screenshots/getaway-show/10-final.png) |
 
+## The Envelope
+
+The brief is in `docs/THE_ENVELOPE_BUILD_BRIEF.md`.
+
+### How it plays
+
+1. The title page shows the premise: an unfamiliar city, five nights, and an envelope holding a hand-drawn map, a brass key tagged 14 and a note.
+2. The story runs from the first night to the last evening. Every path has nine decisions, plus a tenth when the result is close. Each decision offers two or three options. A playthrough is about 1,300–1,650 words, or 5–8 minutes.
+3. The objective is to find what the key opens. Branches follow the bookseller (Vera), the train to the mapmaker's town (Teodora) or the river ferry (Nadia), then rejoin. Earlier choices return as callbacks, and the city's weather and people shift with the player's leanings.
+4. All three endings resolve the key the same way: drawer 14 of a plan chest behind reception. Who is there, and what the player draws on their own map, depends on the route taken.
+5. After the story comes an optional practical check on cold weather and cost. It adds notes and never changes the ranking.
+6. The result shows the best match and its night split, the decisions that pointed to it, how the trip could feel, January conditions, the main compromise and a runner-up. The player can compare the top two, revisit any decision, replay, or go to the full holiday table at `/getaway-show/holidays`.
+
+Back a step and Start again are under every scene. Number keys 1–3 pick an option. Focus moves to each new scene's heading. The lightning button turns animation off, and the device's reduced-motion setting is honoured.
+
+### How the suggestion is worked out
+
+- There are seven hidden dimensions: pace, setting, focus, range, comfort, evenings and journeys. They are defined in `src/envelope/data/dimensions.ts`.
+- Each option moves one or more dimensions by up to 2 either way. No option names or scores a destination.
+- A dimension's value is the average of the effects from the decisions that covered it, not the sum. A longer branch cannot pile up more weight. Every path also has the same number of scored decisions.
+- Each average is divided by that dimension's typical spread (`RULES.scale`), measured across every path, so all seven count equally.
+- Each trip has a target position in `src/envelope/data/shortlist.ts`. The nearest by squared distance is suggested.
+- If the runner-up is within `RULES.closeMargin`, the story offers a last-afternoon tiebreak on the dimension where the two trips differ most. Its third option keeps both as credible matches.
+- The explanation quotes the decisions that pushed most towards the suggestion. Because the method is linear in each decision, each decision's share of the margin between two trips can be calculated exactly.
+
+The practical check never infers anything from the story. Budget, cold tolerance and flight times are only discussed there, and only from researched data.
+
+### Where things live
+
+| File | What it holds |
+|---|---|
+| `src/envelope/data/story.ts` | Every scene, choice, callback, tiebreak and ending |
+| `src/envelope/data/dimensions.ts` | The dimensions, their wording, and the scoring rules |
+| `src/envelope/data/shortlist.ts` | Destination profiles: targets, night splits, January notes, compromises and links to researched itineraries |
+| `src/envelope/data/practical.ts` | The practical check questions |
+| `src/envelope/lib/engine.ts` | Replays the saved choices to rebuild the scene, flags and scores |
+| `src/envelope/lib/scoring.ts` | Profile, distances, close results, tiebreaks, contributions and the explanation |
+| `src/envelope/lib/practical.ts` | Practical lines built from `itineraries.json`, labelled researched or unconfirmed |
+| `src/envelope/lib/audit.ts` | Enumerates every path, for the tests and the development view |
+| `src/envelope/lib/state.ts` | Game state and saving to `localStorage` under `the-envelope:v1` |
+
+### Editing the story or the shortlist
+
+- Scenes use plain flags. Every choice taken sets `sceneId.choiceId`, and paragraphs or options can depend on them. `recap` must describe exactly what the player chose, because it is quoted back.
+- To change the shortlist, edit `shortlist.ts`. A trip needs a full `target`, segments adding up to five nights and, where it exists, researched itineraries. Run `npm test`. The tests enumerate all 17,496 story paths and fail if any trip is nearest on fewer than 15% or more than 35% of them.
+- If you change the effects substantially, compare the measured spread in the development view with `RULES.scale`. A test fails if they drift apart by more than 25%.
+- A test checks that no scene names the city, a shortlisted destination or its country.
+
+### The development view
+
+`/the-envelope/dev` shows the saved playthrough decision by decision: what each option covered, its effects, the running profile, every distance, and each decision's share of the margin between the top two. It can also run the full path audit. It is available under `npm run dev` and returns a 404 in production builds unless `NEXT_PUBLIC_ENVELOPE_DEV=1` is set at build time.
+
+### Practical data
+
+Málaga and Kraków use the workbook's priced five-night trips. The two-city splits reuse researched legs only where the dates match: the Poznań → Edinburgh and Kraków → Glasgow return flights on 22 January, and the Kraków room for 18–22 January. Everything else is marked unconfirmed, including Rzeszów flights, all train connections and the totals for both splits. Rzeszów is not in the workbook.
+
+### Screenshots
+
+| Title | A scene | An ending | The result |
+|---|---|---|---|
+| ![Title](docs/screenshots/the-envelope/01-title.png) | ![The bookshop](docs/screenshots/the-envelope/04-bookshop.png) | ![Drawer 14](docs/screenshots/the-envelope/07-ending.png) | ![Result](docs/screenshots/the-envelope/09-result.png) |
+
 ## Deploying to Vercel
 
 The app is a standard Next.js 15 App Router project. It needs no environment variables, database or API keys.
@@ -249,6 +313,8 @@ Guesses, decisions, the chosen dates, contestant names and settings are saved in
 - Weather lines describe typical January climate from general knowledge. They are not forecasts.
 - Points in the price round are entertainment only and do not rank the holidays.
 - Independent voting on two phones, live fares and shared links are not built in any game.
+- The Envelope's January descriptions for Rzeszów are general knowledge. Nothing about Rzeszów is in the workbook.
+- The Envelope's balance figures count every path equally. Real players will not choose at random, so they describe reachability rather than how often each trip will be suggested.
 - Eight unpriced Getaway Show wildcards (Santander, Istanbul, Alicante, Lanzarote, Gran Canaria, Barcelona, Geneva and Zurich) have no photo yet and use the designed poster fallback.
 - The repository has no ESLint set-up, so there is no `npm run lint`. `npm run typecheck` and `npm run build` cover type and build errors.
 - Blind Flight's clues and pitches are editorial copy checked against general knowledge, not against the workbook.
