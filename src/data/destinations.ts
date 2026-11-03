@@ -412,7 +412,6 @@ export const destinationContent: DestinationContent[] = [
   ...[
     ['santander', 'Santander', 'Spain', 'Coastal / food', ['Mediterranean'], 'Seafood and coast.', 'Wet winter likely. No fare matched yet.'],
     ['istanbul', 'Istanbul', 'Turkey', 'History / food', ['Mediterranean'], 'Historic sites, food and ferries.', 'A recent visit may reduce novelty. No fare matched yet.'],
-    ['alicante', 'Alicante', 'Spain', 'Mild / coast', ['Mediterranean', 'Winter sun'], 'Mild coast, waterfront and good restaurants.', 'No fare matched yet.'],
     ['lanzarote', 'Lanzarote', 'Spain (Canary Islands)', 'Winter sun', ['Winter sun'], 'Volcanic landscapes and sun.', 'A car helps to explore. No fare matched yet.'],
     ['gran-canaria', 'Gran Canaria', 'Spain (Canary Islands)', 'Winter sun', ['Winter sun'], 'Las Palmas city or a southern resort; warm and much drier.', 'No fare matched yet.'],
     ['barcelona', 'Barcelona', 'Spain', 'Culture / food', ['Mediterranean'], 'Gaudí, food markets and architecture.', 'No fare matched yet.'],
